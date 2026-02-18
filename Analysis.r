@@ -838,7 +838,7 @@ if (exists("female_hiring") && exists("male_hiring")) {
     ) +
     scale_fill_manual(values = c("Women Owners" = "#d73027", "Men Owners" = "#4575b4")) +
     scale_y_continuous(
-      limits = c(0, 110),
+      limits = c(0, 130),
       labels = function(x) paste0(x, "%"),
       breaks = seq(0, 100, by = 25)
     ) +
@@ -861,9 +861,9 @@ if (exists("female_hiring") && exists("male_hiring")) {
       )
     ) +
     annotate("text",
-      x = 1.5, y = 80,
+      x = 1.5, y = 115,
       label = "Among the few women who DO hire,\n96% of their employees are women",
-      hjust = 0.5, color = "gray40", size = 5, fontface = "bold", lineheight = 0.9
+      hjust = 0.5, color = "#333333", size = 5, fontface = "bold", lineheight = 0.9
     )
 
   ggsave("Chart5_Sisterhood_Effect.png", p5_sisterhood, width = 10, height = 8, dpi = 300, bg = "white")
