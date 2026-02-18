@@ -1,0 +1,13 @@
+# Data files
+*.sav
+*.rds
+*.csv
+Analysis_Ready_Data/
+ASUSE202324sav/
+datainfo/
+
+# R specific
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
