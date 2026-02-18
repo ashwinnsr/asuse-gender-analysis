@@ -1,0 +1,4 @@
+ [1] "fsu"          "sch"          "sector"       "nss_region"   "district"    
+ [6] "stratum"      "sub_stratum"  "subround"     "fodsubregion" "b1q3"        
+[11] "b1q4"         "b1q5"         "level"        "b7pt1q2"      "b7pt1q3"     
+[16] "mlt"         
