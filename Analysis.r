@@ -44,7 +44,7 @@ print(nic_cols)
 
 # Check available columns for manufacturing analysis
 cat("\nChecking for manufacturing sector variable:\n")
-if("Broad_Sector" %in% names(proprietary_data)) {
+if ("Broad_Sector" %in% names(proprietary_data)) {
   cat("Broad_Sector available - values:\n")
   print(table(proprietary_data$Broad_Sector)[1:5])
 } else {
@@ -68,20 +68,20 @@ proprietary_data <- proprietary_data %>%
   mutate(
     # Home-based (already correct in your data)
     is_home_based = ifelse(Work_Location == "Home-Based (Invisible)", 1, 0),
-    
+
     # Employer status
     is_employer = ifelse(Total_Hired_Workers > 0, 1, 0),
-    
+
     # Registered status
     is_registered = ifelse(Is_Registered == "Formal (Registered)", 1, 0),
-    
+
     # Internet use
     uses_internet = ifelse(Internet_Use == "Yes", 1, 0),
-    
+
     # Low education
-    low_education = Owner_Education_Level %in% 
+    low_education = Owner_Education_Level %in%
       c("Illiterate", "Literate/Below Primary", "Primary"),
-    
+
     # Has loan
     has_loan = ifelse(Total_Loans > 0, 1, 0)
   )
@@ -90,14 +90,14 @@ proprietary_data <- proprietary_data %>%
 cat("\n=== ADDING MANUFACTURING VARIABLES ===\n")
 
 # Check if we have NIC_2digit or need to extract it
-if("NIC_2digit" %in% names(proprietary_data)) {
+if ("NIC_2digit" %in% names(proprietary_data)) {
   cat("✓ NIC_2digit available\n")
   proprietary_data <- proprietary_data %>%
     mutate(
       is_apparel = ifelse(NIC_2digit == "14", 1, 0),
       is_tobacco = ifelse(NIC_2digit == "12", 1, 0)
     )
-} else if("NIC_3digit" %in% names(proprietary_data)) {
+} else if ("NIC_3digit" %in% names(proprietary_data)) {
   cat("✓ Using NIC_3digit for manufacturing analysis\n")
   proprietary_data <- proprietary_data %>%
     mutate(
@@ -106,12 +106,12 @@ if("NIC_2digit" %in% names(proprietary_data)) {
       is_apparel = ifelse(nic_2digit_temp == "14", 1, 0),
       is_tobacco = ifelse(nic_2digit_temp == "12", 1, 0)
     )
-} else if("Sector_Tag" %in% names(proprietary_data)) {
+} else if ("Sector_Tag" %in% names(proprietary_data)) {
   cat("✓ Using Sector_Tag for manufacturing analysis\n")
   # Check what values are in Sector_Tag
   cat("Sector_Tag values:\n")
   print(table(proprietary_data$Sector_Tag))
-  
+
   proprietary_data <- proprietary_data %>%
     mutate(
       # Adjust based on your Sector_Tag values
@@ -138,26 +138,26 @@ cat("Checking block02 columns:\n")
 print(names(block02)[1:15])
 
 # Get unique ID format that matches your proprietary_data
-if(all(c("fsu_serial_no", "segment_no", "second_stage_stratum_no", "sample_est_no") %in% names(block02))) {
+if (all(c("fsu_serial_no", "segment_no", "second_stage_stratum_no", "sample_est_no") %in% names(block02))) {
   block02_strat <- block02 %>%
     mutate(
       Unique_ID = paste(fsu_serial_no, segment_no, second_stage_stratum_no, sample_est_no, sep = "_")
     )
-  
+
   # Check which stratification variables are available
   strat_vars <- c()
-  if("stratum" %in% names(block02_strat)) strat_vars <- c(strat_vars, "stratum")
-  if("sub_stratum" %in% names(block02_strat)) strat_vars <- c(strat_vars, "sub_stratum")
-  if("sector" %in% names(block02_strat)) strat_vars <- c(strat_vars, "sector")
-  
+  if ("stratum" %in% names(block02_strat)) strat_vars <- c(strat_vars, "stratum")
+  if ("sub_stratum" %in% names(block02_strat)) strat_vars <- c(strat_vars, "sub_stratum")
+  if ("sector" %in% names(block02_strat)) strat_vars <- c(strat_vars, "sector")
+
   # Select available variables
   select_vars <- c("Unique_ID", "fsu_serial_no", strat_vars)
   block02_strat <- block02_strat %>% select(all_of(select_vars))
-  
+
   # Join with main data
   proprietary_data <- proprietary_data %>%
     left_join(block02_strat, by = "Unique_ID")
-  
+
   cat("✓ Joined stratification variables from block02\n")
   cat("Available stratification variables: ", paste(strat_vars, collapse = ", "), "\n")
 } else {
@@ -165,19 +165,19 @@ if(all(c("fsu_serial_no", "segment_no", "second_stage_stratum_no", "sample_est_n
   # Create minimal stratification
   proprietary_data <- proprietary_data %>%
     mutate(
-      fsu_serial_no = NA,  # Placeholder
-      stratum = 1          # Default stratum
+      fsu_serial_no = NA, # Placeholder
+      stratum = 1 # Default stratum
     )
 }
 
 # Create survey design
 # Check if we have fsu_serial_no for clustering
-if(all(!is.na(proprietary_data$fsu_serial_no)) && length(unique(proprietary_data$fsu_serial_no)) > 1) {
+if (all(!is.na(proprietary_data$fsu_serial_no)) && length(unique(proprietary_data$fsu_serial_no)) > 1) {
   # Create stratified design if we have clustering info
   asuse_design <- svydesign(
-    ids = ~fsu_serial_no,          # Primary Sampling Unit
-    strata = if("stratum" %in% names(proprietary_data)) ~stratum else NULL,
-    weights = ~Weight,             # Already corrected weights
+    ids = ~fsu_serial_no, # Primary Sampling Unit
+    strata = if ("stratum" %in% names(proprietary_data)) ~stratum else NULL,
+    weights = ~Weight, # Already corrected weights
     data = proprietary_data,
     nest = TRUE
   )
@@ -185,8 +185,8 @@ if(all(!is.na(proprietary_data$fsu_serial_no)) && length(unique(proprietary_data
 } else {
   # Simple design without clustering
   asuse_design <- svydesign(
-    ids = ~1,                      # No clustering
-    weights = ~Weight,             # Already corrected weights
+    ids = ~1, # No clustering
+    weights = ~Weight, # Already corrected weights
     data = proprietary_data
   )
   cat("✓ Created simple survey design (no clustering)\n")
@@ -204,7 +204,7 @@ cat("\n=== CALCULATING SURVEY-ADJUSTED METRICS ===\n")
 extract_survey_results <- function(survey_obj) {
   results <- as.data.frame(survey_obj)
   # Handle different column names
-  if("se" %in% names(results)) {
+  if ("se" %in% names(results)) {
     colnames(results)[2] <- "estimate"
     colnames(results)[3] <- "se"
   } else {
@@ -221,34 +221,34 @@ extract_survey_results <- function(survey_obj) {
 cat("\n1. HOME-BASED WORK (Survey Adjusted):\n")
 home_survey <- svyby(~is_home_based, ~Gender, asuse_design, svymean, na.rm = TRUE, vartype = c("se", "ci"))
 home_results <- extract_survey_results(home_survey)
-print(home_results %>% 
-        filter(Gender %in% c("Female", "Male")) %>%
-        mutate(across(c(estimate, se, ci_lower, ci_upper), ~round(. * 100, 1))))
+print(home_results %>%
+  filter(Gender %in% c("Female", "Male")) %>%
+  mutate(across(c(estimate, se, ci_lower, ci_upper), ~ round(. * 100, 1))))
 
 # 4.2 Employer Status
 cat("\n2. EMPLOYER STATUS (Survey Adjusted):\n")
 employer_survey <- svyby(~is_employer, ~Gender, asuse_design, svymean, na.rm = TRUE, vartype = c("se", "ci"))
 employer_results <- extract_survey_results(employer_survey)
-print(employer_results %>% 
-        filter(Gender %in% c("Female", "Male")) %>%
-        mutate(across(c(estimate, se, ci_lower, ci_upper), ~round(. * 100, 1))))
+print(employer_results %>%
+  filter(Gender %in% c("Female", "Male")) %>%
+  mutate(across(c(estimate, se, ci_lower, ci_upper), ~ round(. * 100, 1))))
 
 # 4.3 Registration Status
 cat("\n3. REGISTRATION STATUS (Survey Adjusted):\n")
 reg_survey <- svyby(~is_registered, ~Gender, asuse_design, svymean, na.rm = TRUE, vartype = c("se", "ci"))
 reg_results <- extract_survey_results(reg_survey)
-print(reg_results %>% 
-        filter(Gender %in% c("Female", "Male")) %>%
-        mutate(across(c(estimate, se, ci_lower, ci_upper), ~round(. * 100, 1))))
+print(reg_results %>%
+  filter(Gender %in% c("Female", "Male")) %>%
+  mutate(across(c(estimate, se, ci_lower, ci_upper), ~ round(. * 100, 1))))
 
 # 4.4 Internet Use
 cat("\n4. INTERNET USE (Survey Adjusted):\n")
-if("uses_internet" %in% names(proprietary_data)) {
+if ("uses_internet" %in% names(proprietary_data)) {
   internet_survey <- svyby(~uses_internet, ~Gender, asuse_design, svymean, na.rm = TRUE, vartype = c("se", "ci"))
   internet_results <- extract_survey_results(internet_survey)
-  print(internet_results %>% 
-          filter(Gender %in% c("Female", "Male")) %>%
-          mutate(across(c(estimate, se, ci_lower, ci_upper), ~round(. * 100, 1))))
+  print(internet_results %>%
+    filter(Gender %in% c("Female", "Male")) %>%
+    mutate(across(c(estimate, se, ci_lower, ci_upper), ~ round(. * 100, 1))))
 } else {
   cat("⚠ Internet_Use variable not available\n")
   internet_results <- data.frame(Gender = c("Female", "Male"), estimate = c(NA, NA))
@@ -256,12 +256,12 @@ if("uses_internet" %in% names(proprietary_data)) {
 
 # 4.5 Education Level
 cat("\n5. LOW EDUCATION LEVEL (Survey Adjusted):\n")
-if("low_education" %in% names(proprietary_data)) {
+if ("low_education" %in% names(proprietary_data)) {
   edu_survey <- svyby(~low_education, ~Gender, asuse_design, svymean, na.rm = TRUE, vartype = c("se", "ci"))
   edu_results <- extract_survey_results(edu_survey)
-  print(edu_results %>% 
-          filter(Gender %in% c("Female", "Male")) %>%
-          mutate(across(c(estimate, se, ci_lower, ci_upper), ~round(. * 100, 1))))
+  print(edu_results %>%
+    filter(Gender %in% c("Female", "Male")) %>%
+    mutate(across(c(estimate, se, ci_lower, ci_upper), ~ round(. * 100, 1))))
 } else {
   cat("⚠ Education variable not available\n")
   edu_results <- data.frame(Gender = c("Female", "Male"), estimate = c(NA, NA))
@@ -269,12 +269,12 @@ if("low_education" %in% names(proprietary_data)) {
 
 # 4.6 Credit Access
 cat("\n6. CREDIT ACCESS (Survey Adjusted):\n")
-if("has_loan" %in% names(proprietary_data)) {
+if ("has_loan" %in% names(proprietary_data)) {
   loan_survey <- svyby(~has_loan, ~Gender, asuse_design, svymean, na.rm = TRUE, vartype = c("se", "ci"))
   loan_results <- extract_survey_results(loan_survey)
-  print(loan_results %>% 
-          filter(Gender %in% c("Female", "Male")) %>%
-          mutate(across(c(estimate, se, ci_lower, ci_upper), ~round(. * 100, 1))))
+  print(loan_results %>%
+    filter(Gender %in% c("Female", "Male")) %>%
+    mutate(across(c(estimate, se, ci_lower, ci_upper), ~ round(. * 100, 1))))
 } else {
   cat("⚠ Loan variable not available\n")
   loan_results <- data.frame(Gender = c("Female", "Male"), estimate = c(NA, NA))
@@ -298,82 +298,90 @@ cat("Has is_apparel:", has_apparel, "\n")
 cat("Has is_tobacco:", has_tobacco, "\n")
 cat("Has Broad_Sector:", has_broad_sector, "\n")
 
-if(has_apparel && has_tobacco) {
+if (has_apparel && has_tobacco) {
   # Check how many women we have in the data
   cat("\nTotal women in dataset:", sum(proprietary_data$Gender == "Female", na.rm = TRUE), "\n")
-  
-  if(has_broad_sector) {
+
+  if (has_broad_sector) {
     # Check how many women in manufacturing
-    women_mfg_count <- sum(proprietary_data$Gender == "Female" & 
-                           proprietary_data$Broad_Sector == "Manufacturing", na.rm = TRUE)
+    women_mfg_count <- sum(proprietary_data$Gender == "Female" &
+      proprietary_data$Broad_Sector == "Manufacturing", na.rm = TRUE)
     cat("Women in manufacturing sector:", women_mfg_count, "\n")
-    
-    if(women_mfg_count > 0) {
+
+    if (women_mfg_count > 0) {
       # Try a simpler approach first
       women_mfg_data <- proprietary_data %>%
         filter(Gender == "Female", Broad_Sector == "Manufacturing")
-      
+
       cat("Creating subset for manufacturing analysis...\n")
-      
+
       # Create survey subset
-      women_mfg_design <- subset(asuse_design, 
-                                 Gender == "Female" & Broad_Sector == "Manufacturing")
-      
+      women_mfg_design <- subset(
+        asuse_design,
+        Gender == "Female" & Broad_Sector == "Manufacturing"
+      )
+
       # Check if we have any data in the subset
       cat("Observations in women_mfg_design:", nrow(women_mfg_design), "\n")
-      
-      if(nrow(women_mfg_design) > 0) {
+
+      if (nrow(women_mfg_design) > 0) {
         # Try calculating means one by one
-        tryCatch({
-          cat("Calculating apparel concentration...\n")
-          apparel_mean <- svymean(~is_apparel, women_mfg_design, na.rm = TRUE)
-          cat("Apparel mean calculated\n")
-          
-          cat("Calculating tobacco concentration...\n")
-          tobacco_mean <- svymean(~is_tobacco, women_mfg_design, na.rm = TRUE)
-          cat("Tobacco mean calculated\n")
-          
-          mfg_results <- data.frame(
-            Industry = c("Apparel/Garments", "Tobacco/Beedi"),
-            Percentage = c(round(coef(apparel_mean) * 100, 1), 
-                          round(coef(tobacco_mean) * 100, 1)),
-            SE = c(round(SE(apparel_mean) * 100, 2), 
-                   round(SE(tobacco_mean) * 100, 2))
-          )
-          
-          print(mfg_results)
-          
-          # Store for later use
-          mfg_summary <- list(
-            apparel_pct = round(coef(apparel_mean) * 100, 1),
-            tobacco_pct = round(coef(tobacco_mean) * 100, 1)
-          )
-          
-        }, error = function(e) {
-          cat("Error in svymean calculation:", e$message, "\n")
-          
-          # Fallback: Use simple proportions
-          cat("Using simple proportions as fallback...\n")
-          
-          simple_mfg <- women_mfg_data %>%
-            summarise(
-              apparel_pct = round(mean(is_apparel, na.rm = TRUE) * 100, 1),
-              tobacco_pct = round(mean(is_tobacco, na.rm = TRUE) * 100, 1),
-              n = n()
+        tryCatch(
+          {
+            cat("Calculating apparel concentration...\n")
+            apparel_mean <- svymean(~is_apparel, women_mfg_design, na.rm = TRUE)
+            cat("Apparel mean calculated\n")
+
+            cat("Calculating tobacco concentration...\n")
+            tobacco_mean <- svymean(~is_tobacco, women_mfg_design, na.rm = TRUE)
+            cat("Tobacco mean calculated\n")
+
+            mfg_results <- data.frame(
+              Industry = c("Apparel/Garments", "Tobacco/Beedi"),
+              Percentage = c(
+                round(coef(apparel_mean) * 100, 1),
+                round(coef(tobacco_mean) * 100, 1)
+              ),
+              SE = c(
+                round(SE(apparel_mean) * 100, 2),
+                round(SE(tobacco_mean) * 100, 2)
+              )
             )
-          
-          mfg_results <- data.frame(
-            Industry = c("Apparel/Garments", "Tobacco/Beedi"),
-            Percentage = c(simple_mfg$apparel_pct, simple_mfg$tobacco_pct),
-            Method = "Simple proportion"
-          )
-          
-          print(mfg_results)
-          mfg_summary <- list(
-            apparel_pct = simple_mfg$apparel_pct,
-            tobacco_pct = simple_mfg$tobacco_pct
-          )
-        })
+
+            print(mfg_results)
+
+            # Store for later use
+            mfg_summary <- list(
+              apparel_pct = round(coef(apparel_mean) * 100, 1),
+              tobacco_pct = round(coef(tobacco_mean) * 100, 1)
+            )
+          },
+          error = function(e) {
+            cat("Error in svymean calculation:", e$message, "\n")
+
+            # Fallback: Use simple proportions
+            cat("Using simple proportions as fallback...\n")
+
+            simple_mfg <- women_mfg_data %>%
+              summarise(
+                apparel_pct = round(mean(is_apparel, na.rm = TRUE) * 100, 1),
+                tobacco_pct = round(mean(is_tobacco, na.rm = TRUE) * 100, 1),
+                n = n()
+              )
+
+            mfg_results <- data.frame(
+              Industry = c("Apparel/Garments", "Tobacco/Beedi"),
+              Percentage = c(simple_mfg$apparel_pct, simple_mfg$tobacco_pct),
+              Method = "Simple proportion"
+            )
+
+            print(mfg_results)
+            mfg_summary <- list(
+              apparel_pct = simple_mfg$apparel_pct,
+              tobacco_pct = simple_mfg$tobacco_pct
+            )
+          }
+        )
       } else {
         cat("⚠ No women in manufacturing in survey subset\n")
         mfg_summary <- list(apparel_pct = NA, tobacco_pct = NA)
@@ -385,51 +393,57 @@ if(has_apparel && has_tobacco) {
   } else {
     # No Broad_Sector, analyze all women
     cat("No Broad_Sector variable, analyzing all women...\n")
-    
+
     women_all <- subset(asuse_design, Gender == "Female")
-    
-    if(nrow(women_all) > 0) {
-      tryCatch({
-        apparel_mean <- svymean(~is_apparel, women_all, na.rm = TRUE)
-        tobacco_mean <- svymean(~is_tobacco, women_all, na.rm = TRUE)
-        
-        mfg_results <- data.frame(
-          Industry = c("Apparel/Garments", "Tobacco/Beedi"),
-          Percentage = c(round(coef(apparel_mean) * 100, 1), 
-                        round(coef(tobacco_mean) * 100, 1)),
-          SE = c(round(SE(apparel_mean) * 100, 2), 
-                 round(SE(tobacco_mean) * 100, 2))
-        )
-        
-        print(mfg_results)
-        mfg_summary <- list(
-          apparel_pct = round(coef(apparel_mean) * 100, 1),
-          tobacco_pct = round(coef(tobacco_mean) * 100, 1)
-        )
-        
-      }, error = function(e) {
-        cat("Error:", e$message, "\n")
-        
-        # Simple calculation
-        women_data <- proprietary_data %>% filter(Gender == "Female")
-        simple_mfg <- women_data %>%
-          summarise(
-            apparel_pct = round(mean(is_apparel, na.rm = TRUE) * 100, 1),
-            tobacco_pct = round(mean(is_tobacco, na.rm = TRUE) * 100, 1),
-            n = n()
+
+    if (nrow(women_all) > 0) {
+      tryCatch(
+        {
+          apparel_mean <- svymean(~is_apparel, women_all, na.rm = TRUE)
+          tobacco_mean <- svymean(~is_tobacco, women_all, na.rm = TRUE)
+
+          mfg_results <- data.frame(
+            Industry = c("Apparel/Garments", "Tobacco/Beedi"),
+            Percentage = c(
+              round(coef(apparel_mean) * 100, 1),
+              round(coef(tobacco_mean) * 100, 1)
+            ),
+            SE = c(
+              round(SE(apparel_mean) * 100, 2),
+              round(SE(tobacco_mean) * 100, 2)
+            )
           )
-        
-        mfg_results <- data.frame(
-          Industry = c("Apparel/Garments", "Tobacco/Beedi"),
-          Percentage = c(simple_mfg$apparel_pct, simple_mfg$tobacco_pct)
-        )
-        
-        print(mfg_results)
-        mfg_summary <- list(
-          apparel_pct = simple_mfg$apparel_pct,
-          tobacco_pct = simple_mfg$tobacco_pct
-        )
-      })
+
+          print(mfg_results)
+          mfg_summary <- list(
+            apparel_pct = round(coef(apparel_mean) * 100, 1),
+            tobacco_pct = round(coef(tobacco_mean) * 100, 1)
+          )
+        },
+        error = function(e) {
+          cat("Error:", e$message, "\n")
+
+          # Simple calculation
+          women_data <- proprietary_data %>% filter(Gender == "Female")
+          simple_mfg <- women_data %>%
+            summarise(
+              apparel_pct = round(mean(is_apparel, na.rm = TRUE) * 100, 1),
+              tobacco_pct = round(mean(is_tobacco, na.rm = TRUE) * 100, 1),
+              n = n()
+            )
+
+          mfg_results <- data.frame(
+            Industry = c("Apparel/Garments", "Tobacco/Beedi"),
+            Percentage = c(simple_mfg$apparel_pct, simple_mfg$tobacco_pct)
+          )
+
+          print(mfg_results)
+          mfg_summary <- list(
+            apparel_pct = simple_mfg$apparel_pct,
+            tobacco_pct = simple_mfg$tobacco_pct
+          )
+        }
+      )
     } else {
       cat("⚠ No women in survey design\n")
       mfg_summary <- list(apparel_pct = NA, tobacco_pct = NA)
@@ -437,13 +451,13 @@ if(has_apparel && has_tobacco) {
   }
 } else {
   cat("⚠ Manufacturing variables (is_apparel, is_tobacco) not available\n")
-  
+
   # Try alternative: Look at NIC codes directly
-  if("NIC_2digit" %in% names(proprietary_data)) {
+  if ("NIC_2digit" %in% names(proprietary_data)) {
     cat("Analyzing NIC codes directly...\n")
-    
+
     women_data <- proprietary_data %>% filter(Gender == "Female")
-    
+
     mfg_summary <- women_data %>%
       summarise(
         apparel_count = sum(NIC_2digit == "14", na.rm = TRUE),
@@ -452,16 +466,15 @@ if(has_apparel && has_tobacco) {
         apparel_pct = round(apparel_count / total_women * 100, 1),
         tobacco_pct = round(tobacco_count / total_women * 100, 1)
       )
-    
+
     cat("Direct NIC analysis:\n")
     cat("Apparel (NIC 14): ", mfg_summary$apparel_pct, "%\n", sep = "")
     cat("Tobacco (NIC 12): ", mfg_summary$tobacco_pct, "%\n", sep = "")
-    
-  } else if("NIC_3digit" %in% names(proprietary_data)) {
+  } else if ("NIC_3digit" %in% names(proprietary_data)) {
     cat("Analyzing NIC_3digit codes...\n")
-    
+
     women_data <- proprietary_data %>% filter(Gender == "Female")
-    
+
     mfg_summary <- women_data %>%
       mutate(
         nic_2digit = str_sub(NIC_3digit, 1, 2)
@@ -473,11 +486,10 @@ if(has_apparel && has_tobacco) {
         apparel_pct = round(apparel_count / total_women * 100, 1),
         tobacco_pct = round(tobacco_count / total_women * 100, 1)
       )
-    
+
     cat("NIC_3digit analysis:\n")
     cat("Apparel (starts with 14): ", mfg_summary$apparel_pct, "%\n", sep = "")
     cat("Tobacco (starts with 12): ", mfg_summary$tobacco_pct, "%\n", sep = "")
-    
   } else {
     cat("⚠ No NIC variables available for manufacturing analysis\n")
     mfg_summary <- list(apparel_pct = NA, tobacco_pct = NA)
@@ -489,27 +501,27 @@ manufacturing_summary <- mfg_summary
 
 # 4.8 Sisterhood Effect
 cat("\n8. SISTERHOOD EFFECT (Female Hiring):\n")
-if(all(c("Gender", "is_employer", "Female_Hiring_Ratio") %in% names(proprietary_data))) {
+if (all(c("Gender", "is_employer", "Female_Hiring_Ratio") %in% names(proprietary_data))) {
   women_employers <- subset(asuse_design, Gender == "Female" & is_employer == 1)
   men_employers <- subset(asuse_design, Gender == "Male" & is_employer == 1)
-  
-  if(nrow(women_employers) > 0) {
+
+  if (nrow(women_employers) > 0) {
     female_hiring <- svymean(~Female_Hiring_Ratio, women_employers, na.rm = TRUE)
     cat("Women employers: ", round(coef(female_hiring), 1), "% female employees\n", sep = "")
   } else {
     cat("⚠ No women employers found\n")
     female_hiring <- list(coef = c(Female_Hiring_Ratio = NA))
   }
-  
-  if(nrow(men_employers) > 0) {
+
+  if (nrow(men_employers) > 0) {
     male_hiring <- svymean(~Female_Hiring_Ratio, men_employers, na.rm = TRUE)
     cat("Men employers: ", round(coef(male_hiring), 1), "% female employees\n", sep = "")
   } else {
     cat("⚠ No men employers found\n")
     male_hiring <- list(coef = c(Female_Hiring_Ratio = NA))
   }
-  
-  if(!is.na(coef(female_hiring)[1]) && !is.na(coef(male_hiring)[1]) && coef(male_hiring)[1] > 0) {
+
+  if (!is.na(coef(female_hiring)[1]) && !is.na(coef(male_hiring)[1]) && coef(male_hiring)[1] > 0) {
     ratio <- coef(female_hiring)[1] / coef(male_hiring)[1]
     cat("Ratio: ", round(ratio, 1), "× more likely to hire women\n", sep = "")
   }
@@ -563,7 +575,7 @@ clean_theme <- theme_minimal(base_size = 16) +
 # ============================================
 # CHART 1: THE INVISIBLE WORKSHOP (Already generated)
 # ============================================
-if(nrow(home_results) >= 2) {
+if (nrow(home_results) >= 2) {
   home_chart_data <- tribble(
     ~Gender, ~Location, ~Pct,
     "Female", "Home-Based", round(home_results$estimate[1] * 100, 1),
@@ -571,12 +583,13 @@ if(nrow(home_results) >= 2) {
     "Male", "Home-Based", round(home_results$estimate[2] * 100, 1),
     "Male", "Fixed/Outside", 100 - round(home_results$estimate[2] * 100, 1)
   )
-  
+
   p1_updated <- ggplot(home_chart_data, aes(x = Gender, y = Pct, fill = Location)) +
     geom_col(width = 0.7, color = "white", linewidth = 2) +
-    geom_text(aes(label = paste0(Pct, "%")), 
-              position = position_stack(vjust = 0.5), 
-              color = "white", size = 6, fontface = "bold") +
+    geom_text(aes(label = paste0(Pct, "%")),
+      position = position_stack(vjust = 0.5),
+      color = "white", size = 6, fontface = "bold"
+    ) +
     scale_fill_manual(values = c("Home-Based" = "#d73027", "Fixed/Outside" = "#4575b4")) +
     scale_y_continuous(labels = function(x) paste0(x, "%")) +
     theme_minimal(base_size = 16) +
@@ -591,26 +604,30 @@ if(nrow(home_results) >= 2) {
     labs(
       title = "THE INVISIBLE WORKSHOP",
       subtitle = paste0(
-        round(home_results$estimate[1] * 100, 1), 
-        "% of women entrepreneurs work from home\nvs ", 
-        round(home_results$estimate[2] * 100, 1), 
+        round(home_results$estimate[1] * 100, 1),
+        "% of women entrepreneurs work from home\nvs ",
+        round(home_results$estimate[2] * 100, 1),
         "% of men"
       ),
       fill = "",
       caption = paste0(
         "Source: ASUSE 2023-24 | Survey-adjusted estimates | ",
-        "95% CI: Women [", round(home_results$ci_lower[1] * 100, 1), "%, ", 
+        "95% CI: Women [", round(home_results$ci_lower[1] * 100, 1), "%, ",
         round(home_results$ci_upper[1] * 100, 1), "%], ",
-        "Men [", round(home_results$ci_lower[2] * 100, 1), "%, ", 
+        "Men [", round(home_results$ci_lower[2] * 100, 1), "%, ",
         round(home_results$ci_upper[2] * 100, 1), "%]"
       )
     ) +
-    annotate("text", x = 1.5, y = 85, 
-             label = paste0("Women are ", 
-                           round((home_results$estimate[1]/home_results$estimate[2]), 1),
-                           "× more likely to work from home"), 
-             hjust = 0.5, color = "#d73027", size = 5.5, fontface = "bold")
-  
+    annotate("text",
+      x = 1.5, y = 105,
+      label = paste0(
+        "Women are ",
+        round((home_results$estimate[1] / home_results$estimate[2]), 1),
+        "× more likely to work from home"
+      ),
+      hjust = 0.5, color = "#d73027", size = 5.5, fontface = "bold"
+    )
+
   ggsave("Chart1_SurveyAdjusted_InvisibleWorkshop.png", p1_updated, width = 10, height = 8, dpi = 300, bg = "white")
   cat("✓ Saved Chart 1: Chart1_SurveyAdjusted_InvisibleWorkshop.png\n")
 } else {
@@ -625,25 +642,29 @@ if(nrow(home_results) >= 2) {
 cat("\nGenerating Chart 2: Manufacturing Reality...\n")
 
 # Use the manufacturing results from your analysis
-if(exists("manufacturing_summary")) {
+if (exists("manufacturing_summary")) {
   # Create manufacturing chart data
   mfg_chart_data <- data.frame(
     Industry = c("Apparel/Garments", "Tobacco/Beedi"),
     Percentage = c(manufacturing_summary$apparel_pct, manufacturing_summary$tobacco_pct),
     Color = c("#d73027", "#fc8d59")
   )
-  
+
   p2_manufacturing <- ggplot(mfg_chart_data, aes(x = reorder(Industry, Percentage), y = Percentage, fill = Industry)) +
     geom_col(width = 0.7, color = "white", linewidth = 1.5) +
-    geom_text(aes(label = paste0(Percentage, "%")), 
-              hjust = -0.2, size = 6, fontface = "bold", color = "#333333") +
+    geom_text(aes(label = paste0(Percentage, "%")),
+      hjust = -0.2, size = 6, fontface = "bold", color = "#333333"
+    ) +
     scale_fill_manual(values = c("Apparel/Garments" = "#d73027", "Tobacco/Beedi" = "#fc8d59")) +
-    scale_y_continuous(limits = c(0, 70), 
-                       labels = function(x) paste0(x, "%"),
-                       expand = expansion(mult = c(0, 0.1))) +
+    scale_y_continuous(
+      limits = c(0, 85),
+      labels = function(x) paste0(x, "%"),
+      expand = expansion(mult = c(0, 0.1))
+    ) +
     coord_flip() +
     clean_theme +
     theme(
+      plot.margin = margin(20, 30, 20, 20),
       axis.title.y = element_blank(),
       axis.text.y = element_text(size = 14, face = "bold"),
       legend.position = "none",
@@ -655,10 +676,12 @@ if(exists("manufacturing_summary")) {
       y = "Percentage of women in manufacturing",
       caption = "Source: ASUSE 2023-24 | Survey-adjusted estimates | 95% CI: Apparel [58.6-59.8%], Tobacco [14.7-15.5%]"
     ) +
-    annotate("text", x = 2, y = 40, 
-             label = "74% of women in manufacturing\nwork in just two industries", 
-             hjust = 0, color = "#333333", size = 5, fontface = "bold", lineheight = 0.9)
-  
+    annotate("text",
+      x = 0.6, y = 45,
+      label = "74% of women in manufacturing\nwork in just two industries",
+      hjust = 0, color = "#333333", size = 5, fontface = "bold", lineheight = 0.9
+    )
+
   ggsave("Chart2_Manufacturing_Reality.png", p2_manufacturing, width = 12, height = 8, dpi = 300, bg = "white")
   cat("✓ Saved Chart 2: Chart2_Manufacturing_Reality.png\n")
 } else {
@@ -671,7 +694,7 @@ if(exists("manufacturing_summary")) {
 
 
 # CHART 3: THE SOLOPRENEUR TRAP (Updated)
-if(nrow(employer_results) >= 2) {
+if (nrow(employer_results) >= 2) {
   employer_chart_data <- tribble(
     ~Gender, ~Status, ~Pct,
     "Female", "Has Employees", round(employer_results$estimate[1] * 100, 1),
@@ -679,12 +702,13 @@ if(nrow(employer_results) >= 2) {
     "Male", "Has Employees", round(employer_results$estimate[2] * 100, 1),
     "Male", "Works Alone", 100 - round(employer_results$estimate[2] * 100, 1)
   )
-  
+
   p3_updated <- ggplot(employer_chart_data, aes(x = Gender, y = Pct, fill = Status)) +
     geom_col(width = 0.7, color = "white", linewidth = 2) +
     geom_text(aes(label = paste0(Pct, "%")),
-              position = position_stack(vjust = 0.5),
-              color = "white", size = 6, fontface = "bold") +
+      position = position_stack(vjust = 0.5),
+      color = "white", size = 6, fontface = "bold"
+    ) +
     scale_fill_manual(values = c("Works Alone" = "#d73027", "Has Employees" = "#4575b4")) +
     scale_y_continuous(labels = function(x) paste0(x, "%")) +
     theme_minimal(base_size = 16) +
@@ -699,24 +723,28 @@ if(nrow(employer_results) >= 2) {
     labs(
       title = "THE SOLOPRENEUR TRAP",
       subtitle = paste0(
-        round(100 - employer_results$estimate[1] * 100, 1), 
+        round(100 - employer_results$estimate[1] * 100, 1),
         "% of women entrepreneurs work alone"
       ),
       fill = "",
       caption = paste0(
         "Source: ASUSE 2023-24 | Survey-adjusted estimates | ",
-        "95% CI: Women [", round(employer_results$ci_lower[1] * 100, 1), "%, ", 
+        "95% CI: Women [", round(employer_results$ci_lower[1] * 100, 1), "%, ",
         round(employer_results$ci_upper[1] * 100, 1), "%], ",
-        "Men [", round(employer_results$ci_lower[2] * 100, 1), "%, ", 
+        "Men [", round(employer_results$ci_lower[2] * 100, 1), "%, ",
         round(employer_results$ci_upper[2] * 100, 1), "%]"
       )
     ) +
-    annotate("text", x = 1.5, y = 50, 
-             label = paste0("Men are ", 
-                           round(employer_results$estimate[2]/employer_results$estimate[1], 1),
-                           "× more likely to hire workers"), 
-             hjust = 0.5, color = "#d73027", size = 5.5, fontface = "bold")
-  
+    annotate("text",
+      x = 1.5, y = 105,
+      label = paste0(
+        "Men are ",
+        round(employer_results$estimate[2] / employer_results$estimate[1], 1),
+        "× more likely to hire workers"
+      ),
+      hjust = 0.5, color = "#d73027", size = 5.5, fontface = "bold"
+    )
+
   ggsave("Chart3_SurveyAdjusted_SolopreneurTrap.png", p3_updated, width = 10, height = 8, dpi = 300, bg = "white")
   cat("✓ Saved Chart 3: Chart3_SurveyAdjusted_SolopreneurTrap.png\n")
 } else {
@@ -730,14 +758,14 @@ if(nrow(employer_results) >= 2) {
 cat("\nGenerating Chart 4: Paper Ceiling...\n")
 
 # Use registration results from survey analysis
-if(exists("reg_results")) {
+if (exists("reg_results")) {
   # Prepare data for registration chart
   reg_chart_data <- data.frame(
     Gender = c("Female", "Male"),
     Registered = c(reg_results$estimate[1] * 100, reg_results$estimate[2] * 100),
     Unregistered = c(100 - reg_results$estimate[1] * 100, 100 - reg_results$estimate[2] * 100)
   )
-  
+
   # Create visualization
   p4_paper <- ggplot(reg_chart_data, aes(x = Gender)) +
     # Background for unregistered
@@ -745,14 +773,18 @@ if(exists("reg_results")) {
     # Registered portion
     geom_col(aes(y = Registered, fill = Gender), width = 0.7, color = "white", linewidth = 1.5) +
     # Labels for registered portion
-    geom_text(aes(y = Registered/2, label = paste0(round(Registered, 1), "%\nregistered")), 
-              color = "white", size = 6, fontface = "bold", lineheight = 0.9) +
+    geom_text(aes(y = Registered / 2, label = paste0(round(Registered, 1), "%\nregistered")),
+      color = "white", size = 6, fontface = "bold", lineheight = 0.9
+    ) +
     # Labels for unregistered portion
-    geom_text(aes(y = 102, label = paste0(round(Unregistered, 1), "%\ninvisible")), 
-              size = 4.5, color = "gray50") +
+    geom_text(aes(y = 102, label = paste0(round(Unregistered, 1), "%\ninvisible")),
+      size = 4.5, color = "gray50"
+    ) +
     scale_fill_manual(values = gender_colors) +
-    scale_y_continuous(limits = c(0, 110), 
-                       labels = function(x) paste0(x, "%")) +
+    scale_y_continuous(
+      limits = c(0, 110),
+      labels = function(x) paste0(x, "%")
+    ) +
     clean_theme +
     theme(
       legend.position = "none",
@@ -766,17 +798,19 @@ if(exists("reg_results")) {
       x = NULL,
       caption = paste0(
         "Source: ASUSE 2023-24 | Survey-adjusted estimates | ",
-        "95% CI: Women [", round(reg_results$ci_lower[1] * 100, 1), "%, ", 
+        "95% CI: Women [", round(reg_results$ci_lower[1] * 100, 1), "%, ",
         round(reg_results$ci_upper[1] * 100, 1), "%], ",
-        "Men [", round(reg_results$ci_lower[2] * 100, 1), "%, ", 
+        "Men [", round(reg_results$ci_lower[2] * 100, 1), "%, ",
         round(reg_results$ci_upper[2] * 100, 1), "%]\n",
-        "Men are ", round(reg_results$estimate[2]/reg_results$estimate[1], 1), "× more likely to be registered"
+        "Men are ", round(reg_results$estimate[2] / reg_results$estimate[1], 1), "× more likely to be registered"
       )
     ) +
-    annotate("text", x = 1, y = 55, 
-             label = "90% of women's businesses\nare 'invisible' to government", 
-             hjust = 0.5, color = "#d73027", size = 5, fontface = "bold", lineheight = 0.9)
-  
+    annotate("text",
+      x = 1, y = 80,
+      label = "90% of women's businesses\nare 'invisible' to government",
+      hjust = 0.5, color = "#d73027", size = 5, fontface = "bold", lineheight = 0.9
+    )
+
   ggsave("Chart4_Paper_Ceiling.png", p4_paper, width = 10, height = 8, dpi = 300, bg = "white")
   cat("✓ Saved Chart 4: Chart4_Paper_Ceiling.png\n")
 } else {
@@ -790,21 +824,24 @@ if(exists("reg_results")) {
 cat("\nGenerating Chart 5: Sisterhood Effect...\n")
 
 # Use hiring data from analysis
-if(exists("female_hiring") && exists("male_hiring")) {
+if (exists("female_hiring") && exists("male_hiring")) {
   # Create sisterhood effect data
   sister_data <- data.frame(
     Owner_Gender = c("Women Owners", "Men Owners"),
     Female_Employees_Pct = c(round(coef(female_hiring)[1], 1), round(coef(male_hiring)[1], 1))
   )
-  
+
   p5_sisterhood <- ggplot(sister_data, aes(x = Owner_Gender, y = Female_Employees_Pct, fill = Owner_Gender)) +
     geom_col(width = 0.7, color = "white", linewidth = 1.5) +
-    geom_text(aes(label = paste0(Female_Employees_Pct, "%")), 
-              vjust = -0.5, size = 7, fontface = "bold", color = "#333333") +
+    geom_text(aes(label = paste0(Female_Employees_Pct, "%")),
+      vjust = -0.5, size = 7, fontface = "bold", color = "#333333"
+    ) +
     scale_fill_manual(values = c("Women Owners" = "#d73027", "Men Owners" = "#4575b4")) +
-    scale_y_continuous(limits = c(0, 110),
-                       labels = function(x) paste0(x, "%"),
-                       breaks = seq(0, 100, by = 25)) +
+    scale_y_continuous(
+      limits = c(0, 110),
+      labels = function(x) paste0(x, "%"),
+      breaks = seq(0, 100, by = 25)
+    ) +
     clean_theme +
     theme(
       legend.position = "none",
@@ -819,14 +856,16 @@ if(exists("female_hiring") && exists("male_hiring")) {
       caption = paste0(
         "Source: ASUSE 2023-24 | Only businesses with hired workers | ",
         "Survey-adjusted estimates\n",
-        "Women hire women at ", round(coef(female_hiring)[1]/coef(male_hiring)[1], 0), 
+        "Women hire women at ", round(coef(female_hiring)[1] / coef(male_hiring)[1], 0),
         "× the rate men do"
       )
     ) +
-    annotate("text", x = 1.5, y = 60, 
-             label = "Among the few women who DO hire,\n96% of their employees are women", 
-             hjust = 0.5, color = "gray40", size = 5, fontface = "bold", lineheight = 0.9)
-  
+    annotate("text",
+      x = 1.5, y = 80,
+      label = "Among the few women who DO hire,\n96% of their employees are women",
+      hjust = 0.5, color = "gray40", size = 5, fontface = "bold", lineheight = 0.9
+    )
+
   ggsave("Chart5_Sisterhood_Effect.png", p5_sisterhood, width = 10, height = 8, dpi = 300, bg = "white")
   cat("✓ Saved Chart 5: Chart5_Sisterhood_Effect.png\n")
 } else {
@@ -839,28 +878,32 @@ if(exists("female_hiring") && exists("male_hiring")) {
 
 cat("\nGenerating Chart 6: Digital Divide...\n")
 
-if(exists("internet_results")) {
+if (exists("internet_results")) {
   # Prepare digital divide data
   digital_data <- data.frame(
     Gender = c("Female", "Male"),
     Uses_Internet = c(internet_results$estimate[1] * 100, internet_results$estimate[2] * 100),
     No_Internet = c(100 - internet_results$estimate[1] * 100, 100 - internet_results$estimate[2] * 100)
   )
-  
+
   p6_digital <- ggplot(digital_data, aes(x = Gender)) +
     # Background for offline
     geom_col(aes(y = 100), fill = "gray95", width = 0.7, alpha = 0.5) +
     # Online portion
     geom_col(aes(y = Uses_Internet, fill = Gender), width = 0.7, color = "white", linewidth = 1.5) +
     # Labels for online portion
-    geom_text(aes(y = Uses_Internet/2, label = paste0(round(Uses_Internet, 1), "%\nonline")), 
-              color = "white", size = 6, fontface = "bold", lineheight = 0.9) +
+    geom_text(aes(y = Uses_Internet / 2, label = paste0(round(Uses_Internet, 1), "%\nonline")),
+      color = "white", size = 6, fontface = "bold", lineheight = 0.9
+    ) +
     # Labels for offline portion
-    geom_text(aes(y = 102, label = paste0(round(No_Internet, 1), "%\noffline")), 
-              size = 4.5, color = "gray50") +
+    geom_text(aes(y = 102, label = paste0(round(No_Internet, 1), "%\noffline")),
+      size = 4.5, color = "gray50"
+    ) +
     scale_fill_manual(values = gender_colors) +
-    scale_y_continuous(limits = c(0, 110),
-                       labels = function(x) paste0(x, "%")) +
+    scale_y_continuous(
+      limits = c(0, 110),
+      labels = function(x) paste0(x, "%")
+    ) +
     clean_theme +
     theme(
       legend.position = "none",
@@ -874,18 +917,20 @@ if(exists("internet_results")) {
       x = NULL,
       caption = paste0(
         "Source: ASUSE 2023-24 | Survey-adjusted estimates | ",
-        "95% CI: Women [", round(internet_results$ci_lower[1] * 100, 1), "%, ", 
+        "95% CI: Women [", round(internet_results$ci_lower[1] * 100, 1), "%, ",
         round(internet_results$ci_upper[1] * 100, 1), "%], ",
-        "Men [", round(internet_results$ci_lower[2] * 100, 1), "%, ", 
+        "Men [", round(internet_results$ci_lower[2] * 100, 1), "%, ",
         round(internet_results$ci_upper[2] * 100, 1), "%]\n",
-        "Men are ", round(internet_results$estimate[2]/internet_results$estimate[1], 1), 
+        "Men are ", round(internet_results$estimate[2] / internet_results$estimate[1], 1),
         "× more likely to use internet for business"
       )
     ) +
-    annotate("text", x = 1, y = 65, 
-             label = "86% of women entrepreneurs\nwork completely offline", 
-             hjust = 0.5, color = "#d73027", size = 5, fontface = "bold", lineheight = 0.9)
-  
+    annotate("text",
+      x = 1, y = 85,
+      label = "86% of women entrepreneurs\nwork completely offline",
+      hjust = 0.5, color = "#d73027", size = 5, fontface = "bold", lineheight = 0.9
+    )
+
   ggsave("Chart6_Digital_Divide.png", p6_digital, width = 10, height = 8, dpi = 300, bg = "white")
   cat("✓ Saved Chart 6: Chart6_Digital_Divide.png\n")
 } else {
@@ -898,22 +943,25 @@ if(exists("internet_results")) {
 
 cat("\nGenerating Chart 7: Credit Gap (Bonus)...\n")
 
-if(exists("loan_results")) {
+if (exists("loan_results")) {
   # Prepare credit gap data
   credit_data <- data.frame(
     Gender = c("Female", "Male"),
     Has_Loan = c(loan_results$estimate[1] * 100, loan_results$estimate[2] * 100),
     No_Loan = c(100 - loan_results$estimate[1] * 100, 100 - loan_results$estimate[2] * 100)
   )
-  
+
   p7_credit <- ggplot(credit_data, aes(x = Gender, y = Has_Loan, fill = Gender)) +
     geom_col(width = 0.7, color = "white", linewidth = 1.5) +
-    geom_text(aes(label = paste0(round(Has_Loan, 1), "%")), 
-              vjust = -0.5, size = 7, fontface = "bold", color = "#333333") +
+    geom_text(aes(label = paste0(round(Has_Loan, 1), "%")),
+      vjust = -0.5, size = 7, fontface = "bold", color = "#333333"
+    ) +
     scale_fill_manual(values = gender_colors) +
-    scale_y_continuous(limits = c(0, 25),
-                       labels = function(x) paste0(x, "%"),
-                       breaks = seq(0, 25, by = 5)) +
+    scale_y_continuous(
+      limits = c(0, 25),
+      labels = function(x) paste0(x, "%"),
+      breaks = seq(0, 25, by = 5)
+    ) +
     clean_theme +
     theme(
       legend.position = "none",
@@ -926,18 +974,20 @@ if(exists("loan_results")) {
       y = "Has outstanding loans (%)",
       caption = paste0(
         "Source: ASUSE 2023-24 | Survey-adjusted estimates | ",
-        "95% CI: Women [", round(loan_results$ci_lower[1] * 100, 1), "%, ", 
+        "95% CI: Women [", round(loan_results$ci_lower[1] * 100, 1), "%, ",
         round(loan_results$ci_upper[1] * 100, 1), "%], ",
-        "Men [", round(loan_results$ci_lower[2] * 100, 1), "%, ", 
+        "Men [", round(loan_results$ci_lower[2] * 100, 1), "%, ",
         round(loan_results$ci_upper[2] * 100, 1), "%]\n",
-        "Men are ", round(loan_results$estimate[2]/loan_results$estimate[1], 1), 
+        "Men are ", round(loan_results$estimate[2] / loan_results$estimate[1], 1),
         "× more likely to have loans"
       )
     ) +
-    annotate("text", x = 1.5, y = 15, 
-             label = "Only 6% of women entrepreneurs\nhave access to formal credit", 
-             hjust = 0.5, color = "#d73027", size = 5, fontface = "bold", lineheight = 0.9)
-  
+    annotate("text",
+      x = 1.5, y = 20,
+      label = "Only 6% of women entrepreneurs\nhave access to formal credit",
+      hjust = 0.5, color = "#d73027", size = 5, fontface = "bold", lineheight = 0.9
+    )
+
   ggsave("Chart7_Credit_Gap.png", p7_credit, width = 10, height = 8, dpi = 300, bg = "white")
   cat("✓ Saved Chart 7: Chart7_Credit_Gap.png\n")
 } else {
