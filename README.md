@@ -17,10 +17,15 @@ The analysis uses survey-weighted descriptive statistics to ensure national repr
 - **Data Source**: Ministry of Statistics and Programme Implementation (MoSPI) - ASUSE 2023-24.
 
 ## 📂 Project Structure
-- `story_flowcopy.r`: Data cleaning, merging blocks, and preparing the "Analysis Ready" dataset.
-- `new.r`: Main analysis script generating survey-adjusted metrics and publication-ready charts.
-- `Analysis_Ready_Data/`: Directory containing the processed `.rds` and `.csv` datasets.
-- `Charts/`: Output folder for high-resolution PNG visualizations.
+- `scripts/`:
+  - `new.r`: Main analysis script generating survey-adjusted metrics and publication-ready charts.
+  - `Analysis.r`: Statistical modeling and detailed data validation.
+  - `Dataset_Created.r`: Data cleaning, merging blocks, and preparing the "Analysis Ready" dataset.
+- `docs/`:
+  - `2026-02-19-gender-gaps-asuse.md`: Blog post content with updated relative paths.
+  - Auxiliary documentation and column mappings.
+- `charts/`: High-resolution PNG visualizations for reporting.
+- `data/`: Placeholder for raw and processed datasets (ignored by Git if large).
 
 ## 🚀 How to Run
 1. Ensure the raw ASUSE `.sav` files are in the expected directory structure.

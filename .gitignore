@@ -5,6 +5,10 @@
 Analysis_Ready_Data/
 ASUSE202324sav/
 datainfo/
+data/
+
+# Documentation
+docs/*.pdf
 
 # R specific
 .Rproj.user
