@@ -1,14 +1,26 @@
-# ============================================
-# COMPLETE UPDATED ANALYSIS WITH ALL FIXES
-# ============================================
+# ==============================================================================
+# 02_analysis_main.r
+# ASUSE 2023-24 — Survey-Adjusted Analysis + 7 Publication Charts
+#
+# PURPOSE  : Load the RDS from 01_data_pipeline.r, compute all survey-weighted
+#            metrics, and produce 7 publication-ready PNG charts.
+# PREREQ   : 01_data_pipeline.r must have been run first.
+# OUTPUTS  : charts/  (Charts 1–7)
+#            data/processed/chart_data_survey_adjusted.rds
+# NEXT     : 03_charts_advanced.r for ridge, violin, lollipop, correlogram ...
+# ==============================================================================
 
 # Load required packages
 library(tidyverse)
 library(survey)
+library(srvyr)
 library(scales)
 library(ggrepel)
 library(forcats)
 library(ggplot2)
+
+# Set survey options for variance estimation (handles strata with single PSUs)
+options(survey.lonely.psu = "adjust")
 
 cat("=== LOADING PREPARED DATASET ===\n")
 
@@ -57,11 +69,13 @@ if ("Broad_Sector" %in% names(proprietary_data)) {
 
 cat("\n=== APPLYING CRITICAL DATA FIXES ===\n")
 
-# 2.1 Fix Income data (remove negatives)
-proprietary_data <- proprietary_data %>%
-  filter(Income > 0 & Income <= 10000000)
-
-cat("✓ Filtered income data: removed negatives and capped at ₹1 crore\n")
+# 2.1 NOTE: We do NOT globally filter Income > 0 here.
+# Doing so would remove zero-income and non-reporting enterprises from ALL statistics
+# (home-based %, registration %, internet use, etc.), causing selection bias because
+# zero-income enterprises are disproportionately female and home-based.
+# Income filtering is applied ONLY when computing income-specific statistics below.
+cat("✓ Keeping full sample for structural statistics (home-based, registration, etc.)\n")
+cat("  Income > 0 filter will be applied only for income-specific metrics.\n")
 
 # 2.2 Create proper variables for analysis
 proprietary_data <- proprietary_data %>%
@@ -132,51 +146,21 @@ if ("NIC_2digit" %in% names(proprietary_data)) {
 
 cat("\n=== CREATING SURVEY DESIGN OBJECT ===\n")
 
-# First, get stratification variables from block02
-# Check if block02 has required columns
-cat("Checking block02 columns:\n")
-print(names(block02)[1:15])
-
-# Get unique ID format that matches your proprietary_data
-if (all(c("fsu_serial_no", "segment_no", "second_stage_stratum_no", "sample_est_no") %in% names(block02))) {
-  block02_strat <- block02 %>%
-    mutate(
-      Unique_ID = paste(fsu_serial_no, segment_no, second_stage_stratum_no, sample_est_no, sep = "_")
-    )
-
-  # Check which stratification variables are available
-  strat_vars <- c()
-  if ("stratum" %in% names(block02_strat)) strat_vars <- c(strat_vars, "stratum")
-  if ("sub_stratum" %in% names(block02_strat)) strat_vars <- c(strat_vars, "sub_stratum")
-  if ("sector" %in% names(block02_strat)) strat_vars <- c(strat_vars, "sector")
-
-  # Select available variables
-  select_vars <- c("Unique_ID", "fsu_serial_no", strat_vars)
-  block02_strat <- block02_strat %>% select(all_of(select_vars))
-
-  # Join with main data
-  proprietary_data <- proprietary_data %>%
-    left_join(block02_strat, by = "Unique_ID")
-
-  cat("✓ Joined stratification variables from block02\n")
-  cat("Available stratification variables: ", paste(strat_vars, collapse = ", "), "\n")
+# First, check if stratification variables are already present from Dataset_Created.r
+cat("Checking for stratification variables...\n")
+if (all(c("PSU", "Strata", "Weight") %in% names(proprietary_data))) {
+  cat("✓ Found PSU, Strata, and Weight in dataset\n")
 } else {
-  cat("⚠ Block02 doesn't have required columns for stratification\n")
-  # Create minimal stratification
-  proprietary_data <- proprietary_data %>%
-    mutate(
-      fsu_serial_no = NA, # Placeholder
-      stratum = 1 # Default stratum
-    )
+  cat("⚠ Missing expected survey design variables (PSU, Strata, Weight)\n")
 }
 
 # Create survey design
-# Check if we have fsu_serial_no for clustering
-if (all(!is.na(proprietary_data$fsu_serial_no)) && length(unique(proprietary_data$fsu_serial_no)) > 1) {
+# Use PSU and Strata which were created in Dataset_Created.r
+if (all(!is.na(proprietary_data$PSU)) && length(unique(proprietary_data$PSU)) > 1) {
   # Create stratified design if we have clustering info
   asuse_design <- svydesign(
-    ids = ~fsu_serial_no, # Primary Sampling Unit
-    strata = if ("stratum" %in% names(proprietary_data)) ~stratum else NULL,
+    ids = ~PSU, # Primary Sampling Unit
+    strata = if ("Strata" %in% names(proprietary_data)) ~Strata else NULL,
     weights = ~Weight, # Already corrected weights
     data = proprietary_data,
     nest = TRUE
@@ -255,16 +239,36 @@ if ("uses_internet" %in% names(proprietary_data)) {
 }
 
 # 4.5 Education Level
+# FIX (Issue 4): svyby on a logical variable returns two columns (FALSE, TRUE) plus SE columns
+# for each level. The positional extract_survey_results() misparses this.
+# We extract the TRUE-level (low education = TRUE) directly by name.
 cat("\n5. LOW EDUCATION LEVEL (Survey Adjusted):\n")
 if ("low_education" %in% names(proprietary_data)) {
   edu_survey <- svyby(~low_education, ~Gender, asuse_design, svymean, na.rm = TRUE, vartype = c("se", "ci"))
-  edu_results <- extract_survey_results(edu_survey)
-  print(edu_results %>%
+
+  # Extract the TRUE column directly: 'low_educationTRUE', 'se.low_educationTRUE',
+  # 'ci_l.low_educationTRUE', 'ci_u.low_educationTRUE'
+  edu_results <- as.data.frame(edu_survey)
+  edu_results_clean <- data.frame(
+    Gender       = edu_results$Gender,
+    estimate     = edu_results[["low_educationTRUE"]],
+    se           = edu_results[["se.low_educationTRUE"]],
+    ci_lower     = edu_results[["ci_l.low_educationTRUE"]],
+    ci_upper     = edu_results[["ci_u.low_educationTRUE"]]
+  )
+
+  print(edu_results_clean %>%
     filter(Gender %in% c("Female", "Male")) %>%
     mutate(across(c(estimate, se, ci_lower, ci_upper), ~ round(. * 100, 1))))
+  # NOTE on education rates: ASUSE covers Own Account Enterprises (OAEs) which are
+  # predominantly micro/informal. High low-education rates (40-60%) are plausible
+  # for this universe, but verify against NSSO published tables if available.
 } else {
   cat("⚠ Education variable not available\n")
-  edu_results <- data.frame(Gender = c("Female", "Male"), estimate = c(NA, NA))
+  edu_results_clean <- data.frame(
+    Gender = c("Female", "Male"), estimate = c(NA, NA),
+    se = c(NA, NA), ci_lower = c(NA, NA), ci_upper = c(NA, NA)
+  )
 }
 
 # 4.6 Credit Access
@@ -499,6 +503,15 @@ if (has_apparel && has_tobacco) {
 # Store manufacturing summary
 manufacturing_summary <- mfg_summary
 
+# Pre-compute combined % for use in dynamic annotation (Issue 3)
+if (!is.null(manufacturing_summary$apparel_pct) && !is.na(manufacturing_summary$apparel_pct) &&
+  !is.null(manufacturing_summary$tobacco_pct) && !is.na(manufacturing_summary$tobacco_pct)) {
+  combined_mfg_pct <- manufacturing_summary$apparel_pct + manufacturing_summary$tobacco_pct
+  cat(sprintf("Combined apparel+tobacco share: %.1f%%\n", combined_mfg_pct))
+} else {
+  combined_mfg_pct <- NA
+}
+
 # 4.8 Sisterhood Effect
 cat("\n8. SISTERHOOD EFFECT (Female Hiring):\n")
 if (all(c("Gender", "is_employer", "Female_Hiring_Ratio") %in% names(proprietary_data))) {
@@ -621,7 +634,7 @@ if (nrow(home_results) >= 2) {
       )
     ) +
     annotate("text",
-      x = 1.5, y = 85,
+      x = 1.5, y = 97,
       label = paste0(
         "Women are ",
         round((home_results$estimate[1] / home_results$estimate[2]), 1),
@@ -677,11 +690,24 @@ if (exists("manufacturing_summary")) {
       title = "THE 'FACTORY' IS A LIVING ROOM",
       subtitle = "What 'manufacturing' really means for women entrepreneurs",
       y = "Percentage of women in manufacturing",
-      caption = "Source: ASUSE 2023-24 | Survey-adjusted estimates | 95% CI: Apparel [58.6-59.8%], Tobacco [14.7-15.5%]"
+      # FIX (Issue 3): CI in caption now dynamically computed from actual SE values
+      caption = paste0(
+        "Source: ASUSE 2023-24 | Survey-adjusted estimates | ",
+        if (!is.na(manufacturing_summary$apparel_pct)) {
+          paste0("Apparel: ", manufacturing_summary$apparel_pct, "%, Tobacco: ", manufacturing_summary$tobacco_pct, "%")
+        } else {
+          "Manufacturing estimates"
+        }
+      )
     ) +
+    # FIX (Issue 3): Annotation now uses dynamically computed combined percentage
     annotate("text",
-      x = 2, y = 40,
-      label = "74% of women in manufacturing\nwork in just two industries",
+      x = 2, y = 52,
+      label = if (!is.na(combined_mfg_pct)) {
+        paste0(round(combined_mfg_pct, 0), "% of women in manufacturing\nwork in just two industries")
+      } else {
+        "Women concentrated in two industries"
+      },
       hjust = 0, color = "#333333", size = 5, fontface = "bold", lineheight = 0.9
     )
 
@@ -739,13 +765,13 @@ if (nrow(employer_results) >= 2) {
       )
     ) +
     annotate("text",
-      x = 1.5, y = 50,
+      x = 1.5, y = 105,
       label = paste0(
         "Men are ",
         round(employer_results$estimate[2] / employer_results$estimate[1], 1),
         "× more likely to hire workers"
       ),
-      hjust = 0.5, color = "#d73027", size = 5.5, fontface = "bold"
+      hjust = 0.5, vjust = 0, color = "#d73027", size = 5.5, fontface = "bold"
     )
 
   ggsave("../charts/Chart3_SurveyAdjusted_SolopreneurTrap.png", p3_updated, width = 10, height = 8, dpi = 300, bg = "white")
@@ -809,7 +835,7 @@ if (exists("reg_results")) {
       )
     ) +
     annotate("text",
-      x = 1, y = 55,
+      x = 1, y = 50,
       label = "90% of women's businesses\nare 'invisible' to government",
       hjust = 0.5, color = "#d73027", size = 5, fontface = "bold", lineheight = 0.9
     )
@@ -864,9 +890,9 @@ if (exists("female_hiring") && exists("male_hiring")) {
       )
     ) +
     annotate("text",
-      x = 1.5, y = 60,
+      x = 1.4, y = 70,
       label = "Among the few women who DO hire,\n96% of their employees are women",
-      hjust = 0.5, color = "gray40", size = 5, fontface = "bold", lineheight = 0.9
+      hjust = 1, color = "gray40", size = 5, fontface = "bold", lineheight = 0.9
     )
 
   ggsave("../charts/Chart5_Sisterhood_Effect.png", p5_sisterhood, width = 10, height = 8, dpi = 300, bg = "white")
@@ -929,7 +955,7 @@ if (exists("internet_results")) {
       )
     ) +
     annotate("text",
-      x = 1, y = 65,
+      x = 1, y = 55,
       label = "86% of women entrepreneurs\nwork completely offline",
       hjust = 0.5, color = "#d73027", size = 5, fontface = "bold", lineheight = 0.9
     )
@@ -986,7 +1012,7 @@ if (exists("loan_results")) {
       )
     ) +
     annotate("text",
-      x = 1.5, y = 15,
+      x = 1.5, y = 18,
       label = "Only 6% of women entrepreneurs\nhave access to formal credit",
       hjust = 0.5, color = "#d73027", size = 5, fontface = "bold", lineheight = 0.9
     )
@@ -1039,9 +1065,57 @@ cat("🎯 YOUR ARTICLE NOW HAS 7 POWERFUL VISUALS!\n")
 cat(strrep("=", 80), "\n", sep = "")
 
 
-# Add to your analysis
-total_women_weighted <- sum(proprietary_data$Weight[proprietary_data$Gender == "Female"])
-cat("Estimated national women entrepreneurs:", round(total_women_weighted / 10000000, 1), "crore\n")
+# ============================================
+# WEIGHT SCALING & NATIONAL ESTIMATE (Issue 7 fix)
+# ============================================
+# NSS design weights (mlt/Weight) are survey multipliers. Their sum (= weighted N)
+# represents the estimated population of enterprises in the universe.
+# The ASUSE 2023-24 universe covers ~200-300 million enterprises nationally.
+# If total weighted count >> 500 million, divide by 100 (standard NSSO scaling).
 
-invisible_economy <- total_women_weighted * 57000 * 0.904 / 1e12 # in lakh crore
-cat("Invisible economy: ₹", round(invisible_economy, 1), "lakh crore\n", sep = "")
+total_women_raw <- sum(proprietary_data$Weight[proprietary_data$Gender == "Female"], na.rm = TRUE)
+total_all_raw <- sum(proprietary_data$Weight, na.rm = TRUE)
+
+cat("\n=== WEIGHT SCALING DIAGNOSTIC ===\n")
+cat(sprintf("Raw weighted total (all genders): %.0f\n", total_all_raw))
+cat(sprintf("Raw weighted total (women only):  %.0f\n", total_women_raw))
+
+# Determine scale factor:
+# Expected universe: ~63M-300M enterprises. Adjust divisor accordingly.
+if (total_all_raw > 5e8) {
+  # Weights appear to be × 100 scale (raw sum >> expected universe)
+  weight_scale <- 100
+  cat("⚠ Total >> 300M: applying scale divisor of 100 to correct population estimates\n")
+} else {
+  weight_scale <- 1
+  cat("✓ Weighted total appears reasonable — no divisor needed\n")
+}
+
+total_women_weighted <- total_women_raw / weight_scale
+cat(sprintf(
+  "\nEstimated national women entrepreneurs: %.2f crore\n",
+  total_women_weighted / 1e7
+))
+
+# Invisible economy: median income × share home-based, annualised
+# Use survey-derived median income for women from the dataset
+cat("\n=== INVISIBLE ECONOMY CALCULATION ===\n")
+
+# Use srvyr to calculate median income for women
+female_median_result <- proprietary_data %>%
+  filter(Gender == "Female" & Income > 0) %>%
+  as_survey_design(ids = PSU, strata = Strata, weights = Weight, nest = TRUE) %>%
+  summarise(median_income = survey_median(Income, na.rm = TRUE))
+
+female_median_income <- female_median_result$median_income
+
+if (!is.na(female_median_income)) {
+  female_home_share <- 0.752 # From your survey: 75.2% home-based
+  invisible_enterprise_count <- total_women_weighted * female_home_share
+  invisible_economy <- (invisible_enterprise_count * female_median_income) / 1e12 # lakh crore
+  cat(sprintf("Survey-derived female median income: ₹%.0f/year\n", female_median_income))
+  cat(sprintf("Invisible economy estimate: ₹%.2f lakh crore\n", invisible_economy))
+  cat("(Based on estimated count of home-based women entrepreneurs)\n")
+} else {
+  cat("⚠ Could not compute female median income\n")
+}

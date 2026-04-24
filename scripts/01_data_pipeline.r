@@ -1,6 +1,12 @@
 # ==============================================================================
-# ASUSE DATA CLEANING - FINAL COMPREHENSIVE VERSION WITH FIXES
-# INCLUDING ALL "MUSCLE VARIABLES" FOR GENDERED ANALYSIS
+# 01_data_pipeline.r
+# ASUSE 2023-24 — Data Cleaning & Analysis-Ready Dataset
+#
+# PURPOSE : Load raw SPSS blocks, clean, merge, and produce
+#           asuse_final_gendered_analysis.rds for downstream analysis.
+# OUTPUTS : <asuse_dir>/Analysis_Ready_Data/asuse_final_gendered_analysis.rds
+#           <asuse_dir>/Analysis_Ready_Data/asuse_final_gendered_analysis.csv
+# NEXT    : Run 02_analysis_main.r  →  03_charts_advanced.r
 # ==============================================================================
 
 # Load libraries
@@ -75,6 +81,8 @@ for (file_name in names(all_files)) {
 
     # Store in list
     loaded_blocks[[block_name]] <- data
+    rm(data)
+    gc()
   } else {
     cat("  File not found\n")
   }
@@ -83,6 +91,8 @@ for (file_name in names(all_files)) {
 
 # Make all blocks available as individual objects
 list2env(loaded_blocks, envir = .GlobalEnv)
+rm(loaded_blocks)   # single rm() — list2env() already moved its contents out
+gc()
 
 # ============================================
 # STEP 3: CREATE BASE COMPREHENSIVE DATASET
@@ -165,6 +175,11 @@ block01_design <- block01 %>%
 analysis_base <- analysis_base %>%
   left_join(block01_design, by = "Unique_ID", relationship = "many-to-one")
 
+# DIAGNOSTIC: Check weight join success
+weight_na_rate <- mean(is.na(analysis_base$Weight))
+cat(sprintf("  Weight join NA rate: %.1f%% (should be near 0)\n", weight_na_rate * 100))
+if (weight_na_rate > 0.05) warning("More than 5% of rows have missing weights — check Unique_ID construction in block01.")
+
 
 # ============================================
 # STEP 5: ADD INCOME/GVA (FINAL CORRECTED VERSION)
@@ -177,23 +192,26 @@ analysis_base <- analysis_base %>%
 income_source <- block08 %>%
   mutate(
     # --- FIX 1: USE THE 4-PART UNIQUE ID ---
+    # NOTE: block08 uses 'second_stage_stratum' (no _no suffix)
     Unique_ID = paste(fsu_serial_no, segment_no, second_stage_stratum, sample_est_no, sep = "_")
   )
 
 # 2. Extract GVA (Market) and NVA (Non-Market)
+# item_no 769 = GVA at market prices; item_no 779 = NVA (non-market / home production)
+# Per ASUSE survey manual, an enterprise reports EITHER 769 or 779, not both.
+# Summing is therefore safe; the rare case of both rows appearing is treated as
+# additive (e.g., mixed-activity units) which is conservative.
 income_summary <- income_source %>%
-  # Filter for the specific summary rows mentioned in the manual
   filter(item_no %in% c("769", "779")) %>%
   group_by(Unique_ID) %>%
   summarise(
-    # Get the value (GVA or NVA)
-    # If a business has both (rare), sum them, otherwise take the max
+    # Verify: check for double-reporters if needed
+    # n_rows = n(),  # uncomment to diagnose multi-row IDs
     Monthly_Value = sum(as.numeric(value_rs), na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
-    # --- FIX 2: ANNUALIZATION ---
-    # The reference period for Block 7 is "Last 30 Days"
+    # Reference period for Block 7 is "Last 30 Days" → annualise
     Income = Monthly_Value * 12
   ) %>%
   select(Unique_ID, Income)
@@ -202,13 +220,21 @@ income_summary <- income_source %>%
 analysis_base <- analysis_base %>%
   left_join(income_summary, by = "Unique_ID")
 
+# DIAGNOSTIC: Check income join
+# NOTE: block08 uses 'second_stage_stratum' (no _no suffix) vs block02's 'second_stage_stratum_no'
+# If these differ in your data, Unique_IDs will not match and income will be largely NA.
+# Verify with: names(block08)[grepl("stratum", names(block08))]
+income_na_rate <- mean(is.na(analysis_base$Income))
+cat(sprintf("  Income join NA rate: %.1f%% (enterprises with no income record)\n", income_na_rate * 100))
+if (income_na_rate > 0.80) warning("Very high income NA rate — Unique_ID mismatch likely between block02 and block08. Check stratum column name: block08 may use 'second_stage_stratum', not 'second_stage_stratum_no'.")
+
 
 # ============================================
 # STEP 6: ADD EMPLOYMENT DATA FROM BLOCK09
 # ============================================
 block09_base <- block09 %>%
   mutate(
-    Unique_ID = paste(fsu_serial_no, segment_no, second_stage_stratum, sample_est_no, sep = "_"),
+    Unique_ID = paste(fsu_serial_no, segment_no, second_stage_stratum, sample_est_no, sep = "_")
   )
 
 # Get total workers
@@ -222,13 +248,19 @@ emp_summary <- block09_base %>%
 analysis_base <- analysis_base %>%
   left_join(emp_summary, by = "Unique_ID")
 
+# DIAGNOSTIC: Check employment join
+# block09 also uses 'second_stage_stratum' — same potential mismatch as block08
+emp_na_rate <- mean(is.na(analysis_base$Total_Workers))
+cat(sprintf("  Employment join NA rate: %.1f%% (establishments with no worker record)\n", emp_na_rate * 100))
+if (emp_na_rate > 0.80) warning("Very high employment NA — check Unique_ID mismatch between block02 and block09.")
+
 
 # ============================================
 # STEP 7: ADD LOANS DATA FROM BLOCK07
 # ============================================
 block07_ids <- block07 %>%
   mutate(
-    Unique_ID = paste(fsu_serial_no, segment_no, second_stage_stratum, sample_est_no, sep = "_"),
+    Unique_ID = paste(fsu_serial_no, segment_no, second_stage_stratum, sample_est_no, sep = "_")
   )
 
 # Convert value to numeric
@@ -243,6 +275,10 @@ loan_summary <- block07_ids %>%
 analysis_base <- analysis_base %>%
   left_join(loan_summary, by = "Unique_ID")
 
+# DIAGNOSTIC: Loan join (block07 also uses 'second_stage_stratum')
+loan_na_rate <- mean(is.na(analysis_base$Total_Loans))
+cat(sprintf("  Loan join NA rate: %.1f%% (establishments with no loan record is expected)\n", loan_na_rate * 100))
+
 
 # ============================================
 # STEP 8: ADD ASSETS DATA FROM BLOCK11
@@ -250,7 +286,7 @@ analysis_base <- analysis_base %>%
 # Create Unique_ID for block11
 block11_ids <- block11 %>%
   mutate(
-    Unique_ID = paste(fsu_serial_no, segment_no, second_stage_stratum_no, sample_estab_no, sep = "_"),
+    Unique_ID = paste(fsu_serial_no, segment_no, second_stage_stratum_no, sample_estab_no, sep = "_")
   )
 
 # Sum numeric columns as assets
@@ -270,6 +306,10 @@ asset_summary <- block11_ids %>%
 
 analysis_base <- analysis_base %>%
   left_join(asset_summary, by = "Unique_ID")
+
+# DIAGNOSTIC: Asset join (block11 uses 'second_stage_stratum_no' — should match block02)
+asset_na_rate <- mean(is.na(analysis_base$Total_Assets))
+cat(sprintf("  Asset join NA rate: %.1f%% (establishments with no asset record)\n", asset_na_rate * 100))
 
 
 # ============================================
@@ -551,9 +591,22 @@ final_analysis_variables <- c(
 # Keep only variables that exist
 final_vars_existing <- final_analysis_variables[final_analysis_variables %in% names(asuse_final_comprehensive)]
 
+# Pre-dedup diagnostic: flag unexpected duplicates before silently dropping them
+n_before <- nrow(asuse_final_comprehensive)
+n_dups   <- sum(duplicated(asuse_final_comprehensive$Unique_ID))
+if (n_dups > 0) {
+  warning(sprintf(
+    "%d duplicate Unique_IDs detected before deduplication (%.2f%% of rows). "
+    , n_dups, n_dups / n_before * 100
+  ))
+}
+
 asuse_final <- asuse_final_comprehensive %>%
   select(all_of(final_vars_existing)) %>%
   distinct(Unique_ID, .keep_all = TRUE)
+
+cat(sprintf("  Rows before dedup: %d  |  After: %d  |  Dropped: %d\n",
+            n_before, nrow(asuse_final), n_before - nrow(asuse_final)))
 
 # Remove extreme outliers for realistic analysis
 asuse_final <- asuse_final %>%
@@ -686,6 +739,9 @@ financial_weighted <- asuse_survey %>%
     .groups = "drop"
   )
 print(financial_weighted)
+# NOTE: Transgender estimates with NaN SEs indicate insufficient PSUs in strata for variance
+# estimation. These cells are statistically unreliable and should NOT be reported with point
+# estimates alone. Flag them as 'insufficient sample' in any publication.
 
 # ============================================
 # STEP 13: SAVE ENHANCED DATASET
@@ -693,22 +749,36 @@ print(financial_weighted)
 
 cat("\n=== SAVING ENHANCED DATASET ===\n")
 
+# ============================================
+# WEIGHT SCALING VERIFICATION (Issue 7)
+# ============================================
+# NSS/MOSPI weights (mlt) are design weights that expand the sample to the population.
+# Before using in print/reporting, verify total makes sense:
+# India's enterprise universe ≈ 63 million (Eco Census 2013), ~200 million (projected).
+# If sum(Weight) / n_establishments is >> 200, weights may need a divisor.
+# Check:
+wt_check <- asuse_final %>%
+  group_by(Gender) %>%
+  summarise(n_sample = n(), sum_wt = sum(Weight, na.rm = TRUE), .groups = "drop") %>%
+  mutate(avg_wt = sum_wt / n_sample)
+cat("\nWeight Scaling Diagnostic:\n")
+print(wt_check)
+cat("\nIMPORTANT: If sum(Female Weight) >> 1B enterprises, divide Weight by 100 before reporting\n")
+cat("Population totals reported by survey_total() are used for between-gender RATIOS — those are unaffected by a constant divisor.\n")
+cat("Only standalone population count claims (e.g., '198.9 crore women entrepreneurs') require the correct divisor.\n\n")
+
 saveRDS(asuse_final, file.path(output_dir, "asuse_final_gendered_analysis.rds"))
 write.csv(asuse_final, file.path(output_dir, "asuse_final_gendered_analysis.csv"), row.names = FALSE)
 
 
-cat("\n")
-cat(strrep("=", 80))
-cat("\n")
-cat("ENHANCED DATASET READY FOR 4 KILLER CHARTS:\n")
-cat(strrep("=", 80))
-cat("\n")
-cat("\nYour dataset now includes variables for:\n")
-cat("\n1. THE 'HOME-BASED' TRAP CHART: Work_Location, Is_Home_Based\n")
-cat("2. THE 'SISTERHOOD' EFFECT CHART: Female_Hiring_Ratio, Has_Female_Employees\n")
-cat("3. THE 'PAPER CEILING' CHART: Is_Registered\n")
-cat("4. THE 'PROBLEM CONSTRAINT' CHART: Problem_Category\n")
-cat("\nPlus all financial variables for comprehensive analysis!\n")
+cat("\n", strrep("=", 80), "\n", sep = "")
+cat("DATASET READY — next steps:\n")
+cat(strrep("=", 80), "\n", sep = "")
+cat("\nRun in order:\n")
+cat("  02_analysis_main.r   → survey-adjusted metrics + 7 publication charts\n")
+cat("  03_charts_advanced.r → advanced visualisations (ridge, violin, lollipop ...)\n")
 cat("\nDataset saved in:", output_dir, "\n")
 cat("Main file: asuse_final_gendered_analysis.rds\n")
-cat("\n Ready for your gendered analysis\n")
+cat("\nWeight scaling reminder:\n")
+cat("  Ratios (e.g. 2.8× more home-based) — unaffected by weight divisor.\n")
+cat("  Standalone counts (e.g. '19.9 crore women') — divide sum(Weight) by 100.\n")
