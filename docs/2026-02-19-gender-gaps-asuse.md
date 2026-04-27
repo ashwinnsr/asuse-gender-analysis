@@ -1,10 +1,24 @@
 ---
 layout: post
-title: "The Invisible Workshop: Unveiling Gender Gaps in India's Unincorporated Sector"
-date: 2026-02-19
-author: Ashwin
-tags: [India, Economics, Gender, Data Science, ASUSE]
+title: " Unveiling Gender Gaps in India's Unincorporated Sector"
+date: 2026-01-19
+author: 
+tags: 
+
+comments: true
+math: true  
+description: "An analysis of ASUSE 2023-24 data to understand the role of women in India's unincorporated sector enterprises."
 ---
+
+<div class="text-center mt-4 mb-4">
+  <a href="https://github.com/ashwinnsr/asuse-gender-analysis" 
+     class="btn btn-primary" 
+     target="_blank" 
+     rel="noopener noreferrer">
+    <i class="fab fa-github"></i> View Code on GitHub
+  </a>
+</div>
+
 
 ## Abstract
 
@@ -18,9 +32,7 @@ India's unincorporated, or informal, enterprise sector is frequently described a
 
 The persistent conflation of male and female entrepreneurship under the single umbrella of the "unincorporated sector" masks structural inequalities that conventional policy frameworks are ill-equipped to address. If women entrepreneurs predominantly work from home, operate in two or three narrow industries, cannot register their businesses, cannot access formal credit, and are excluded from the digital economy, then policies designed for a generic "small entrepreneur" will systematically fail half the intended beneficiaries.
 
-This analysis addresses a specific gap in our understanding: **Do women and men in India's unincorporated sector operate under structurally different conditions, and if so, across which dimensions are these gaps most pronounced?** The ASUSE 2023-24 data provides an opportunity to answer this question with nationally representative, survey-adjusted precision for the first time at this scale.
-
-![The Disadvantage Profile: 6 dimensions of structural exclusion](../charts/advanced/B_lollipop_disadvantage_profile.png)
+This analysis addresses a specific gap in our understanding. It asks **do women and men in India's unincorporated sector operate under structurally different conditions, and if so, across which dimensions are these gaps most pronounced?** The ASUSE 2023-24 data provides an opportunity to answer this question with nationally representative, survey-adjusted precision for the first time at this scale.
 
 ---
 
@@ -34,15 +46,15 @@ The primary data source is the **Annual Survey of Unincorporated Sector Enterpri
 
 The analysis dataset was built in R by merging seven of the fifteen ASUSE data blocks:
 
-| Block | Content |
-|---|---|
-| Block 01 (Level 01) | Sampling weights (`mlt`) and primary sampling units |
+| Block               | Content                                                                                        |
+| :------------------ | :--------------------------------------------------------------------------------------------- |
+| Block 01 (Level 01) | Sampling weights (`mlt`) and primary sampling units                                            |
 | Block 02 (Level 02) | Core establishment characteristics, NIC industry codes, digital access, registration, and location |
-| Block 07 (Level 07) | Loan and credit data |
-| Block 08 (Level 08) | Income and Gross Value Added (GVA) |
-| Block 09 (Level 09) | Employment by gender (full-time / part-time, male / female / transgender) |
-| Block 10 (Level 10) | Wage and salary payments |
-| Block 11 (Level 11) | Fixed assets |
+| Block 07 (Level 07) | Loan and credit data                                                                           |
+| Block 08 (Level 08) | Income and Gross Value Added (GVA)                                                             |
+| Block 09 (Level 09) | Employment by gender (full-time / part-time, male / female / transgender)                      |
+| Block 10 (Level 10) | Wage and salary payments                                                                       |
+| Block 11 (Level 11) | Fixed assets                                                                                   |
 
 Each block was loaded from SPSS (`.sav`) format using R's `haven` package, then column names were standardized using `janitor::clean_names()`. Unique establishment identifiers were constructed by concatenating four hierarchical fields: `fsu_serial_no`, `segment_no`, `second_stage_stratum_no`, and `sample_est_no`. An important data inconsistency was detected and corrected: Blocks 08, 09, and 10 use the field name `second_stage_stratum` (without the `_no` suffix), requiring separate identifier strings for each join—a mismatch that would have caused near-total income and employment data loss had it gone undetected.
 
@@ -84,63 +96,113 @@ All charts annotate their survey-adjusted estimates alongside confidence interva
 
 ## 3. Results
 
-### Finding 1 — The Invisible Workshop & The Income Canyon
+### Finding 1 — The Disadvantage Profile
 
-The most fundamental structural difference between male and female entrepreneurs is where they work. **75.2% of women entrepreneurs operate from within their homes**, compared to just 27% of men. This nearly three-fold gap is not incidental—it reflects a constrained set of choices shaped by mobility restrictions, caregiving responsibilities, and capital limitations. 
+Before examining specific sectors, a broad profile of the unincorporated sector reveals systemic gender disparities across almost every structural dimension. The aggregate disadvantage profile highlights how women-owned enterprises operate under fundamentally different, and more constrained, conditions compared to those owned by men.
 
-Crucially, this spatial isolation has a direct impact on earning potential. As the income distribution ridge plot below demonstrates, home-based work severely compresses women's incomes into the very bottom of the earnings range, creating an "Income Canyon" between them and their male counterparts who operate out of fixed, external premises.
+<figure class="text-center">
+  <img src="/assets/img/ASUSE-gendered-analysis-article/B_lollipop_disadvantage_profile.png"
+       alt="Disadvantage Profile: Gender gaps across key enterprise dimensions" 
+       class="img-fluid" 
+       style="max-width: 85%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+  <figcaption class="mt-2 text-muted">
+    <strong>Figure 1:</strong> The Disadvantage Profile: Gender gaps across key enterprise dimensions.
+  </figcaption>
+</figure>
 
-![The Income Canyon: Ridge plot of income by gender and location](../charts/advanced/C_ridge_income_by_gender_location.png)
+### Finding 2 — The Invisible Workshop and Income Penalty
 
-### Finding 2 — The Pink Ghetto in Manufacturing
+The most fundamental structural difference between male and female entrepreneurs is where they work, and how that impacts their earnings. **75.2% of women entrepreneurs operate from within their homes**, compared to just 27% of men. This nearly three-fold gap restricts scale and visibility. Consequently, the income distribution for women—particularly those operating home-based enterprises—is significantly compressed at the lower end compared to their male counterparts.
 
-Among women in the manufacturing sector, the diversity of options is strikingly narrow. The dumbbell chart reveals a hyper-concentration in just two industries.
+<figure class="text-center">
+  <img src="/assets/img/ASUSE-gendered-analysis-article/C_ridge_income_by_gender_location.png"
+       alt="Income Distributions by Gender and Location" 
+       class="img-fluid" 
+       style="max-width: 85%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+  <figcaption class="mt-2 text-muted">
+    <strong>Figure 2:</strong> Income Distributions by Gender and Location: The penalty of the invisible workshop.
+  </figcaption>
+</figure>
 
-**59% of women in manufacturing work in Apparel and Garments (NIC 14)**, and a further **15% in Tobacco products, primarily Beedi rolling (NIC 12)**. By contrast, men are distributed much more evenly across the manufacturing spectrum. These two female-dominated industries are characterized by low entry barriers, minimal capital requirements, piece-rate pay structures, and very thin margins. This concentration is not an expression of comparative advantage—it reflects the pinch of intersecting constraints that funnel women into the same narrow corridors.
+### Finding 3 — Sectoral Concentration in Manufacturing
 
-![The Pink Ghetto: Dumbbell chart of manufacturing concentration](../charts/advanced/A_dumbbell_manufacturing_gender_gap.png)
+Among women in the manufacturing sector, the diversity of options is strikingly narrow. **59% of women in manufacturing work in Apparel and Garments (NIC 14)**, and a further **15% in Tobacco products, primarily Beedi rolling (NIC 12)**. Together, these two industries account for nearly three-quarters of women's manufacturing employment. Both are characterized by low entry barriers, minimal capital requirements, piece-rate pay structures, and very thin margins.
 
-### Finding 3 — The Solopreneur Trap
+<figure class="text-center">
+  <img src="/assets/img/ASUSE-gendered-analysis-article/A_dumbbell_manufacturing_gender_gap.png"
+       alt="Manufacturing Reality: Gender gaps in sectoral concentration" 
+       class="img-fluid" 
+       style="max-width: 85%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+  <figcaption class="mt-2 text-muted">
+    <strong>Figure 3:</strong> Sectoral Concentration: The manufacturing gender gap.
+  </figcaption>
+</figure>
 
-Scaling an enterprise—transitioning from running it alone to hiring even one additional worker—is a critical inflection point in firm growth. The ASUSE data reveals that this transition remains overwhelmingly out of reach for women.
+### Finding 4 — The Solopreneur Trap
 
-**Only 3.3% of women-owned enterprises have any hired workers**, compared to nearly double that rate for men. This gap is not simply a reflection of smaller firm size; it reflects a compounding of constraints. Home-based operations offer little space for additional workers, informality makes it legally risky, and limited credit access prevents payroll expansion. The vast majority of women entrepreneurs remain permanently self-employed—solopreneurs by circumstance rather than choice.
+Scaling an enterprise—transitioning from running it alone to hiring even one additional worker—is a critical inflection point in firm growth. The ASUSE data reveals that this transition remains overwhelmingly out of reach for women. **Only 3.3% of women-owned enterprises have any hired workers**, compared to nearly triple that rate for men. The vast majority of women entrepreneurs remain permanently self-employed—solopreneurs by circumstance rather than choice.
 
-![The Solopreneur Trap: Only 3.3% of women-owned firms have any hired workers](../charts/Chart3_SurveyAdjusted_SolopreneurTrap.png)
+<figure class="text-center">
+  <img src="/assets/img/ASUSE-gendered-analysis-article/Chart3_SurveyAdjusted_SolopreneurTrap.png"
+       alt="The Solopreneur Trap: Only 3.3% of women-owned firms have any hired workers" 
+       class="img-fluid" 
+       style="max-width: 85%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+  <figcaption class="mt-2 text-muted">
+    <strong>Figure 4:</strong> The Solopreneur Trap: Only 3.3% of women-owned firms have any hired workers.
+  </figcaption>
+</figure>
 
-### Finding 4 — Four Dimensions of Exclusion: Formalization, Digital, and Credit
+### Finding 5 — Dimensions of Exclusion: Formalization, Digital, and Credit
 
-The structural disadvantages women face extend beyond physical space and into the institutional and digital realms. The summary panel below highlights four intersecting dimensions of exclusion.
+Women entrepreneurs face intersecting barriers that lock them out of formal economic growth. **90% of women's businesses remain unregistered** (the Paper Ceiling), making them invisible to state support. Furthermore, **86% operate entirely offline** without internet access for business (the Digital Divide), and **only 6% have access to formal loans** (the Credit Gap). These compounded exclusions form a structural barrier to enterprise growth.
 
-Women are almost entirely locked out of the formal economy: **90% of women-owned businesses are unregistered** (the "Paper Ceiling"), making them invisible to state support systems and institutional lenders. Consequently, **only 6% of women entrepreneurs have access to formal credit**. This lack of formalization is compounded by a severe digital divide, where **86% of women entrepreneurs operate entirely offline**. Together, these deficits create a self-reinforcing trap: no credit means no ability to scale, no digital presence limits market reach, and no registration disqualifies them from government assistance.
+<figure class="text-center">
+  <img src="/assets/img/ASUSE-gendered-analysis-article/G_panel_four_exclusion_dimensions.png"
+       alt="Four Dimensions of Exclusion: Formalization, Digital, Credit, and Scale" 
+       class="img-fluid" 
+       style="max-width: 85%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+  <figcaption class="mt-2 text-muted">
+    <strong>Figure 5:</strong> Dimensions of Exclusion: How women are structurally locked out of formalization, digital markets, and credit.
+  </figcaption>
+</figure>
 
-![Four Dimensions of Gender Exclusion](../charts/advanced/G_panel_four_exclusion_dimensions.png)
+### Finding 6 — Self-Reported Problem Constraints
 
-### Finding 5 — Divergent Constraints: Transport vs. Markets
+When asked to report the primary constraints facing their businesses, the responses reveal the practical impact of the exclusions documented above. From capital shortages to marketing bottlenecks, women systematically report different and more severe constraints than male owners, further underscoring how intersecting barriers limit their day-to-day operations.
 
-When entrepreneurs are asked about the most severe problem facing their business, a stark gender divergence emerges, highlighting how different their operational realities are.
+<figure class="text-center">
+  <img src="/assets/img/ASUSE-gendered-analysis-article/F_dodged_problem_constraints.png"
+       alt="Self-Reported Problem Constraints by Gender" 
+       class="img-fluid" 
+       style="max-width: 85%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+  <figcaption class="mt-2 text-muted">
+    <strong>Figure 6:</strong> Operational Hurdles: Self-reported problem constraints by gender.
+  </figcaption>
+</figure>
 
-For women, **Transport** is one of the most disproportionately cited constraints, reflecting the severe mobility restrictions and safety concerns they face when trying to source materials or deliver goods outside the home. For men, the primary hurdles are **Market Linkages** and **Power Supply**—growth-oriented constraints typical of enterprises trying to expand their customer base or run heavy machinery.
+### Finding 7 — The Sisterhood Effect
 
-![Different Struggles: Dodged bar chart of problem constraints](../charts/advanced/F_dodged_problem_constraints.png)
+Amidst these constraints, the ASUSE data offers a striking counter-narrative. **When women do scale and hire, they disproportionately employ other women.** Women enterprise owners hire female workers at **26 times the rate** that male enterprise owners do. This "Sisterhood Effect" suggests that women-led enterprises function as critical anchors in the female labor market.
 
-### Finding 6 — The Sisterhood Effect
-
-Amidst the severe constraints documented above, the ASUSE data offers a striking counter-narrative regarding the potential impact of women's entrepreneurship.
-
-**When women do scale and hire, they disproportionately employ other women.** Women enterprise owners hire female workers at **26 times the rate** that male enterprise owners do. In fact, 96% of the workforce in female-owned employer firms consists of women. This "Sisterhood Effect" suggests that women-led enterprises function as critical anchors in the female labor market—creating safe, accessible employment opportunities that male-led firms in the same sector are far less likely to generate.
-
-![The Sisterhood Effect: Women owners hire women at 26x the rate of male owners](../charts/Chart5_Sisterhood_Effect.png)
+<figure class="text-center">
+  <img src="/assets/img/ASUSE-gendered-analysis-article/Chart5_Sisterhood_Effect.png"
+       alt="The Sisterhood Effect: Women owners hire women at 26x the rate of male owners" 
+       class="img-fluid" 
+       style="max-width: 85%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+  <figcaption class="mt-2 text-muted">
+    <strong>Figure 7:</strong> The Sisterhood Effect: Women owners hire women at 26x the rate of male owners.
+  </figcaption>
+</figure>
 
 ---
 
 ## 4. Discussion
 
-The seven findings together do not describe isolated disadvantages—they describe a **self-reinforcing system of exclusion**. A woman who works from home (Finding 1) is concentrated in low-margin sectors (Finding 2), cannot easily hire workers (Finding 3), has little incentive or ability to register (Finding 4), is excluded from digital markets (Finding 6), and cannot access the credit that would otherwise break the cycle (Finding 7).
+The seven findings together do not describe isolated disadvantages—they describe a **self-reinforcing system of exclusion**. A woman who works from home and faces an income penalty (Finding 2) is concentrated in low-margin sectors (Finding 3), cannot easily hire workers (Finding 4), and is structurally locked out of registration, digital markets, and credit (Finding 5). These compounded barriers manifest as severe daily operational constraints (Finding 6).
 
 This system is not an accident of individual circumstance. It reflects structural conditions—social norms around mobility, unequal burden of unpaid care work, capital market discrimination, and the design of state schemes that presuppose formal, fixed-location enterprises—that collectively constrain women's entrepreneurial choices at every stage.
 
-What makes the Sisterhood Effect (Finding 5) particularly valuable from a policy perspective is that it demonstrates the *multiplier* nature of investing in women entrepreneurs. The bottleneck is not women's entrepreneurial capacity—it is their access to resources. Where that access is secured, women create economic opportunities for other women at a scale that male-owned firms do not.
+What makes the Sisterhood Effect (Finding 7) particularly valuable from a policy perspective is that it demonstrates the *multiplier* nature of investing in women entrepreneurs. The bottleneck is not women's entrepreneurial capacity—it is their access to resources. Where that access is secured, women create economic opportunities for other women at a scale that male-owned firms do not.
 
 **Implications for policy:**
 - **Enterprise support programs** must be re-designed to reach home-based and unregistered enterprises. Requiring a fixed address or registration certificate as a precondition for eligibility systematically excludes 90% of women-owned firms.

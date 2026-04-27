@@ -879,7 +879,7 @@ if (exists("female_hiring") && exists("male_hiring")) {
       panel.grid.major.x = element_blank()
     ) +
     labs(
-      title = "MEN HIRE MEN. WOMEN HIRE WOMEN.",
+      title = "Women Hire Women",
       subtitle = "Percentage of female employees in businesses owned by women vs men",
       y = "Female employees (%)",
       caption = paste0(

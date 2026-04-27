@@ -276,8 +276,11 @@ analysis_base <- analysis_base %>%
   left_join(loan_summary, by = "Unique_ID")
 
 # DIAGNOSTIC: Loan join (block07 also uses 'second_stage_stratum')
+# NOTE: Block 6 is a *selective* block — only establishments that borrowed fill it.
+# A loan NA rate of 85-95% is structurally expected for unincorporated micro-enterprises.
 loan_na_rate <- mean(is.na(analysis_base$Total_Loans))
-cat(sprintf("  Loan join NA rate: %.1f%% (establishments with no loan record is expected)\n", loan_na_rate * 100))
+cat(sprintf("  Loan join NA rate: %.1f%% (high NA is expected — only borrowers appear in Block 6)\n", loan_na_rate * 100))
+if (loan_na_rate > 0.99) warning("Loan NA rate > 99% — possible complete Unique_ID mismatch in block07.")
 
 
 # ============================================
@@ -358,24 +361,25 @@ block2_muscle <- block02 %>%
 # ----------------------------------------------------------------
 
 # Based on the column names we saw earlier
+# GUARD: transgender columns may be absent in some NSSO data releases
 employment_enhance <- block09 %>%
   mutate(
     Unique_ID = paste(fsu_serial_no, segment_no, second_stage_stratum, sample_est_no, sep = "_"),
 
     # Convert to numeric - handle missing values
-    full_time_male = as.numeric(full_time_male),
+    full_time_male   = as.numeric(full_time_male),
     full_time_female = as.numeric(full_time_female),
-    full_time_trans = as.numeric(full_time_trans),
-    part_time_male = as.numeric(part_time_male),
+    full_time_trans  = if ("full_time_trans"  %in% names(block09)) as.numeric(full_time_trans)  else 0,
+    part_time_male   = as.numeric(part_time_male),
     part_time_female = as.numeric(part_time_female),
-    part_time_trans = as.numeric(part_time_trans)
+    part_time_trans  = if ("part_time_trans"  %in% names(block09)) as.numeric(part_time_trans)  else 0
   ) %>%
   group_by(Unique_ID) %>%
   summarise(
     # Sum across worker categories (no casual columns in this dataset)
-    Male_Workers = sum(full_time_male + part_time_male, na.rm = TRUE),
-    Female_Workers = sum(full_time_female + part_time_female, na.rm = TRUE),
-    Trans_Workers = sum(full_time_trans + part_time_trans, na.rm = TRUE),
+    Male_Workers        = sum(full_time_male   + part_time_male,   na.rm = TRUE),
+    Female_Workers      = sum(full_time_female + part_time_female, na.rm = TRUE),
+    Trans_Workers       = sum(full_time_trans  + part_time_trans,  na.rm = TRUE),
     Total_Hired_Workers = Male_Workers + Female_Workers + Trans_Workers,
     .groups = "drop"
   )
@@ -463,25 +467,27 @@ asuse_final_comprehensive <- analysis_base %>%
     # 5. Create sector classifications from NIC codes
     NIC_numeric = as.numeric(str_extract(NIC_2digit, "\\d+")),
 
-    # Broad Sector Classification
+    # Broad Sector Classification (NIC-2008)
+    # Manufacturing: 10–35 (incl. motor vehicles 29-30 & other transport 30-35)
     Broad_Sector = case_when(
-      NIC_numeric >= 10 & NIC_numeric <= 33 ~ "Manufacturing",
+      NIC_numeric >= 10 & NIC_numeric <= 35 ~ "Manufacturing",
       NIC_numeric >= 45 & NIC_numeric <= 47 ~ "Trade",
       (NIC_numeric >= 36 & NIC_numeric <= 39) |
         (NIC_numeric >= 50 & NIC_numeric <= 96) ~ "Services",
       TRUE ~ "Other"
     ),
 
-    # Detailed Manufacturing Sub-sectors
+    # Detailed Manufacturing Sub-sectors — aligned to NIC-2008 chapter structure
     Manufacturing_Subsector = case_when(
-      NIC_numeric >= 10 & NIC_numeric <= 12 ~ "Food Products",
-      NIC_numeric >= 13 & NIC_numeric <= 15 ~ "Beverages & Tobacco",
-      NIC_numeric >= 16 & NIC_numeric <= 18 ~ "Textiles & Apparel",
-      NIC_numeric >= 19 & NIC_numeric <= 22 ~ "Leather & Wood",
-      NIC_numeric >= 23 & NIC_numeric <= 25 ~ "Paper & Chemicals",
-      NIC_numeric >= 26 & NIC_numeric <= 28 ~ "Pharma & Rubber",
-      NIC_numeric >= 29 & NIC_numeric <= 30 ~ "Metals & Machinery",
-      NIC_numeric >= 31 & NIC_numeric <= 33 ~ "Electronics & Transport",
+      NIC_numeric >= 10 & NIC_numeric <= 12 ~ "Food, Beverages & Tobacco",
+      NIC_numeric >= 13 & NIC_numeric <= 15 ~ "Textiles, Apparel & Leather",
+      NIC_numeric >= 16 & NIC_numeric <= 18 ~ "Wood, Paper & Printing",
+      NIC_numeric >= 19 & NIC_numeric <= 22 ~ "Petroleum, Chemicals & Plastics",
+      NIC_numeric >= 23 & NIC_numeric <= 25 ~ "Non-metallic Minerals & Basic Metals",
+      NIC_numeric >= 26 & NIC_numeric <= 28 ~ "Electronics, Electrical & Machinery",
+      NIC_numeric >= 29 & NIC_numeric <= 30 ~ "Motor Vehicles & Other Transport",
+      NIC_numeric >= 31 & NIC_numeric <= 33 ~ "Furniture, Other Mfg & Repair",
+      NIC_numeric >= 34 & NIC_numeric <= 35 ~ "Motor Vehicles & Other Transport",
       TRUE ~ NA_character_
     ),
 
@@ -609,11 +615,12 @@ cat(sprintf("  Rows before dedup: %d  |  After: %d  |  Dropped: %d\n",
             n_before, nrow(asuse_final), n_before - nrow(asuse_final)))
 
 # Remove extreme outliers for realistic analysis
+# Lower bounds: Income >= 0 guards against data-entry errors (negative GVA impossible)
 asuse_final <- asuse_final %>%
   filter(
-    Income <= 10000000, # Remove > ₹1 crore income outliers
-    Total_Assets <= 50000000, # Remove > ₹5 crore asset outliers
-    Total_Loans <= 10000000 # Remove > ₹1 crore loan outliers
+    is.na(Income) | (Income >= 0 & Income <= 10000000), # Remove < 0 errors & > ₹1 crore outliers
+    Total_Assets <= 50000000,                            # Remove > ₹5 crore asset outliers
+    Total_Loans  <= 10000000                             # Remove > ₹1 crore loan outliers
   )
 
 # NSSO weights usually have a multiplier divisor (often 100)
