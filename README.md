@@ -1,6 +1,6 @@
 # Gendered Analysis of Unincorporated Sector Enterprises — ASUSE 2023-24
 
-> **An IndiaSpend investigation** into the structural barriers facing women
+> Investigating the structural barriers facing women
 > entrepreneurs in India's vast unincorporated enterprise sector, using the
 > latest Annual Survey of Unincorporated Sector Enterprises (ASUSE 2023-24)
 > from the Ministry of Statistics and Programme Implementation (MoSPI).
